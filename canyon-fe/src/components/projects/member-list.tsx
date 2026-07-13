@@ -79,7 +79,7 @@ export function MemberList({
                 disabled={busyId === member.userId}
                 onValueChange={(v) => handleRoleChange(member.userId, v as MemberRole)}
               >
-                <SelectTrigger className="h-8 w-28">
+                <SelectTrigger className="h-8 w-24 sm:w-28">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

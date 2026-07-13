@@ -103,7 +103,7 @@ export default function ProjectsPage() {
       </div>
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           <Skeleton className="h-40" />
           <Skeleton className="h-40" />
         </div>
@@ -126,7 +126,7 @@ export default function ProjectsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           {projects.map((project) => {
             const total = project.totalTasks ?? 0;
             const done = project.completedTasks ?? 0;

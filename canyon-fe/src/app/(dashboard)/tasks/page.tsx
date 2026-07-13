@@ -55,7 +55,7 @@ export default function TasksPage() {
         <div className="space-y-2">
           <Label>Status</Label>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-full sm:w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -71,7 +71,7 @@ export default function TasksPage() {
         <div className="space-y-2">
           <Label>Priority</Label>
           <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-full sm:w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

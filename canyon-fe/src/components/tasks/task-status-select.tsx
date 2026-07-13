@@ -45,7 +45,7 @@ export function TaskStatusSelect({
       disabled={saving}
       onValueChange={(v) => handleChange(v as TaskStatus)}
     >
-      <SelectTrigger className="w-40">
+      <SelectTrigger className="w-full sm:w-40">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

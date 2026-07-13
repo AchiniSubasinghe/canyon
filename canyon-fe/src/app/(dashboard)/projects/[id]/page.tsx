@@ -252,7 +252,7 @@ export default function ProjectDetailPage() {
         ) : null}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Members</CardTitle>

@@ -25,7 +25,7 @@ function DialogContent({
       <DialogPrimitive.Overlay className="fixed inset-0 z-[var(--z-overlay)] bg-[rgb(26_26_24/0.28)] backdrop-blur-[1px]" />
       <DialogPrimitive.Content
         className={cn(
-          "mono-panel fixed left-1/2 top-1/2 z-[var(--z-modal)] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-md p-6 animate-panel-in",
+          "mono-panel fixed left-1/2 top-1/2 z-[var(--z-modal)] w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-md p-4 sm:p-6 animate-panel-in md:w-full",
           className
         )}
         {...props}

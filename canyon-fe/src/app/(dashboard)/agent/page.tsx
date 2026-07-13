@@ -205,7 +205,7 @@ export default function AgentPage() {
   const boundaryText = `This agent only knows and suggests actions available to you as ${currentRole.replace(/_/g, " ")}.`;
 
   return (
-    <div className="-mx-6 -my-6 flex h-[calc(100dvh-3rem)] flex-col md:-mx-8 md:-my-8 md:h-dvh">
+    <div className="-mx-4 -mt-14 flex h-[calc(100dvh)] flex-col pt-14 md:-mx-8 md:-mt-8 md:h-dvh md:pt-0">
       <div className="flex items-center justify-between border-b border-border px-6 py-3">
         <div className="flex items-center gap-3">
           <CanyonMark size="sm" />
