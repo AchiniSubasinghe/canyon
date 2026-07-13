@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { GlassShell } from "@/components/layout/glass-shell";
+import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -47,7 +47,7 @@ export default function LoginPage() {
   }
 
   return (
-    <GlassShell>
+    <AppShell>
       <div className="flex min-h-screen items-center justify-center px-4">
         <Card className="w-full max-w-md">
           <CardHeader>
@@ -62,14 +62,14 @@ export default function LoginPage() {
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" {...form.register("email")} />
                 {form.formState.errors.email ? (
-                  <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
+                  <p className="text-xs text-muted-foreground">{form.formState.errors.email.message}</p>
                 ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <Input id="password" type="password" {...form.register("password")} />
                 {form.formState.errors.password ? (
-                  <p className="text-xs text-destructive">
+                  <p className="text-xs text-muted-foreground">
                     {form.formState.errors.password.message}
                   </p>
                 ) : null}
@@ -79,21 +79,14 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-6 rounded-lg border border-border bg-white/3 p-4 text-xs text-muted-foreground">
-              <p className="font-mono uppercase tracking-wider text-accent">Demo accounts</p>
-              <p className="mt-2">admin@canyon.local / Admin123!</p>
-              <p>pm@canyon.local / Pm123456!</p>
-              <p>member@canyon.local / Member123!</p>
-            </div>
-
             <p className="mt-4 text-center text-sm text-muted-foreground">
-              <Link href="/" className="hover:text-foreground">
+              <Link href="/" className="hover:text-foreground hover:underline">
                 Back to home
               </Link>
             </p>
           </CardContent>
         </Card>
       </div>
-    </GlassShell>
+    </AppShell>
   );
 }

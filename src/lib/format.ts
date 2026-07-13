@@ -11,25 +11,38 @@ export function formatPriority(priority: TaskPriority) {
 export function statusVariant(status: TaskStatus) {
   switch (status) {
     case "done":
-      return "success" as const;
+      return "solid" as const;
     case "in_progress":
-      return "accent" as const;
+      return "outline" as const;
     case "review":
-      return "warning" as const;
+      return "outline" as const;
     default:
-      return "secondary" as const;
+      return "muted" as const;
   }
 }
 
 export function priorityVariant(priority: TaskPriority) {
   switch (priority) {
     case "urgent":
-      return "danger" as const;
+      return "solid" as const;
     case "high":
-      return "warning" as const;
+      return "outline" as const;
     case "medium":
-      return "default" as const;
+      return "outline" as const;
     default:
-      return "secondary" as const;
+      return "muted" as const;
+  }
+}
+
+export function statusMarkerOpacity(status: TaskStatus) {
+  switch (status) {
+    case "done":
+      return 1;
+    case "in_progress":
+      return 0.6;
+    case "review":
+      return 0.45;
+    default:
+      return 0.3;
   }
 }

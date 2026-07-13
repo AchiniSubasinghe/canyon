@@ -1,6 +1,6 @@
 import { RequireAuth } from "@/components/auth/require-auth";
-import { GlassShell } from "@/components/layout/glass-shell";
-import { GlassSidebar } from "@/components/layout/glass-sidebar";
+import { AppShell } from "@/components/layout/app-shell";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 
 export default function DashboardLayout({
   children,
@@ -9,12 +9,12 @@ export default function DashboardLayout({
 }) {
   return (
     <RequireAuth>
-      <GlassShell>
+      <AppShell>
         <div className="flex min-h-screen">
-          <GlassSidebar />
+          <AppSidebar />
           <main className="flex-1 overflow-auto p-6 md:p-8">{children}</main>
         </div>
-      </GlassShell>
+      </AppShell>
     </RequireAuth>
   );
 }

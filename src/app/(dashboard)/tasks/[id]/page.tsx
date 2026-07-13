@@ -31,11 +31,11 @@ export default function TaskDetailPage() {
       <div>
         <Link
           href={`/projects/${task.projectId}`}
-          className="font-mono text-xs text-accent hover:underline"
+          className="font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
         >
           Back to project
         </Link>
-        <h1 className="mt-3 font-display text-3xl font-bold">{task.title}</h1>
+        <h1 className="mt-3 text-3xl font-semibold">{task.title}</h1>
         <p className="mt-1 font-mono text-sm text-muted-foreground">Task #{task.id}</p>
       </div>
 

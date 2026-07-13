@@ -38,8 +38,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8 animate-panel-in">
       <div>
-        <p className="font-mono text-xs uppercase tracking-widest text-accent">Overview</p>
-        <h1 className="mt-2 font-display text-3xl font-bold">
+        <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Overview</p>
+        <h1 className="mt-2 text-3xl font-semibold">
           Welcome back, {user?.name.split(" ")[0]}
         </h1>
         <p className="mt-1 text-muted-foreground">

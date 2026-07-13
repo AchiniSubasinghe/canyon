@@ -88,8 +88,8 @@ export default function AdminUsersPage() {
       <div className="space-y-8 animate-panel-in">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="font-mono text-xs uppercase tracking-widest text-accent">Administration</p>
-            <h1 className="mt-2 font-display text-3xl font-bold">Users</h1>
+            <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Administration</p>
+            <h1 className="mt-2 text-3xl font-semibold">Users</h1>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
@@ -174,7 +174,7 @@ export default function AdminUsersPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={user.isActive === false ? "danger" : "success"}>
+                        <Badge variant={user.isActive === false ? "muted" : "solid"}>
                           {user.isActive === false ? "inactive" : "active"}
                         </Badge>
                       </TableCell>

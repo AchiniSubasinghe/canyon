@@ -66,8 +66,8 @@ export default function ProjectsPage() {
       <div className="space-y-8 animate-panel-in">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="font-mono text-xs uppercase tracking-widest text-accent">Portfolio</p>
-            <h1 className="mt-2 font-display text-3xl font-bold">Projects</h1>
+            <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Portfolio</p>
+            <h1 className="mt-2 text-3xl font-semibold">Projects</h1>
           </div>
           {canCreate ? (
             <Dialog open={open} onOpenChange={setOpen}>
@@ -111,7 +111,7 @@ export default function ProjectsPage() {
         ) : projects.length === 0 ? (
           <Card>
             <CardContent className="py-16 text-center">
-              <p className="font-display text-lg font-medium">No projects yet</p>
+              <p className="text-lg font-medium">No projects yet</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Create a project to assign members and add tasks.
               </p>
@@ -126,7 +126,7 @@ export default function ProjectsPage() {
 
               return (
                 <Link key={project.id} href={`/projects/${project.id}`}>
-                  <Card className="glass-hover h-full transition-transform hover:scale-[1.01]">
+                  <Card className="mono-hover h-full transition-colors">
                     <CardHeader>
                       <CardTitle>{project.name}</CardTitle>
                       <p className="text-sm text-muted-foreground line-clamp-2">
@@ -140,9 +140,9 @@ export default function ProjectsPage() {
                           {done}/{total} tasks
                         </span>
                       </div>
-                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
+                      <div className="mt-3 h-2 overflow-hidden rounded-sm bg-secondary">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all"
+                          className="h-full rounded-sm bg-primary transition-all"
                           style={{ width: `${progress}%` }}
                         />
                       </div>

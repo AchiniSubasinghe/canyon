@@ -128,8 +128,8 @@ export default function ProjectDetailPage() {
     <div className="space-y-8 animate-panel-in">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-accent">Project</p>
-          <h1 className="mt-2 font-display text-3xl font-bold">{project.name}</h1>
+          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Project</p>
+          <h1 className="mt-2 text-3xl font-semibold">{project.name}</h1>
           <p className="mt-2 max-w-2xl text-muted-foreground">
             {project.description || "No description provided."}
           </p>
@@ -236,7 +236,7 @@ export default function ProjectDetailPage() {
               project.members?.map((member) => (
                 <div
                   key={member.userId}
-                  className="flex items-center justify-between rounded-lg border border-border bg-white/3 px-3 py-2"
+                  className="flex items-center justify-between rounded-sm border border-border bg-secondary px-3 py-2"
                 >
                   <div>
                     <p className="text-sm font-medium">{member.name}</p>

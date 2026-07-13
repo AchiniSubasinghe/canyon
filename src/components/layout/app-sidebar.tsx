@@ -26,7 +26,7 @@ const navItems: {
   { href: "/admin/users", label: "Users", icon: Users, roles: "admin" },
 ];
 
-export function GlassSidebar() {
+export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, isAdmin } = useAuth();
@@ -43,13 +43,13 @@ export function GlassSidebar() {
   }
 
   return (
-    <aside className="glass-panel flex h-screen w-64 shrink-0 flex-col rounded-none border-y-0 border-l-0 p-4">
+    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-border bg-[#fafafa] p-4">
       <div className="mb-8 flex items-center gap-3 px-2">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/20 text-primary">
+        <div className="flex h-9 w-9 items-center justify-center border border-border bg-background">
           <Shield className="h-5 w-5" />
         </div>
         <div>
-          <p className="font-display text-sm font-semibold">Canyon</p>
+          <p className="text-sm font-semibold">Canyon</p>
           <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
             Task Platform
           </p>
@@ -64,10 +64,10 @@ export function GlassSidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+                "flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm transition-colors",
                 active
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
               )}
             >
               <item.icon className="h-4 w-4" />
