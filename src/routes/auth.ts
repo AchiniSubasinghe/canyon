@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import { verifyPassword } from "../lib/password.js";
 import { Router } from "express";
 import { z } from "zod";
 import { config } from "../config.js";
@@ -25,7 +25,7 @@ router.post("/login", async (req, res, next) => {
       throw new AppError(401, "Invalid email or password");
     }
 
-    const valid = await bcrypt.compare(password, user.passwordHash);
+    const valid = await verifyPassword(password, user.passwordHash);
     if (!valid) {
       throw new AppError(401, "Invalid email or password");
     }

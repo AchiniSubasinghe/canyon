@@ -1,63 +1,70 @@
 # Canyon Backend
 
-This is the backend API for the Canyon project. It's built with Node.js, Express, and TypeScript, utilizing Drizzle ORM for database interactions.
+REST API for Canyon. Built with **Bun**, Express, TypeScript, and Drizzle ORM.
 
 ## Tech Stack
 
+- **Runtime**: Bun
 - **Framework**: Express.js
 - **Language**: TypeScript
 - **ORM**: Drizzle ORM
-- **Database**: MySQL (via `mysql2`)
-- **Authentication**: JWT & bcrypt
+- **Database**: MariaDB / MySQL (via `mysql2`)
+- **Authentication**: JWT + `Bun.password` (bcrypt)
 - **Validation**: Zod
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v20+) or Bun
-- A running MySQL database
+- [Bun](https://bun.sh) 1.1+
+- MariaDB or MySQL
 
 ### Setup
 
 1. Install dependencies:
+
    ```bash
-   npm install
-   # or
    bun install
    ```
 
-2. Configure environment variables:
-   Copy the example environment file and update the variables with your database credentials and JWT secret.
+2. Configure environment:
+
    ```bash
    cp .env.example .env
    ```
 
-3. Database Management:
-   Generate and run migrations, and optionally seed the database:
+3. Database:
+
    ```bash
-   npm run db:generate
-   npm run db:migrate
-   npm run db:seed
+   bun run db:generate
+   bun run db:migrate
+   bun run db:seed
    ```
 
 ### Development
 
-Run the development server with live reloading (via `tsx`):
 ```bash
-npm run dev
-# or
 bun run dev
 ```
 
+Runs `bun --watch src/index.ts` on port 3001 (configurable via `PORT`).
+
 ### Build and Production
 
-To build the project:
 ```bash
-npm run build
+bun run typecheck   # TypeScript check
+bun run build       # Bundle to dist/
+bun run start       # Run src/index.ts
 ```
 
-To start the production server:
-```bash
-npm run start
-```
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `dev` | Watch mode development server |
+| `start` | Run API |
+| `build` | Bundle entry to `dist/` |
+| `typecheck` | `tsc --noEmit` |
+| `db:generate` | Generate Drizzle migrations |
+| `db:migrate` | Apply migrations |
+| `db:seed` | Seed roles and demo users |

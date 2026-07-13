@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import { hashPassword } from "../lib/password.js";
 import { eq } from "drizzle-orm";
 import { db } from "./index.js";
 import { roles, userRoles, users } from "./schema.js";
@@ -47,7 +47,7 @@ async function main() {
     const [existing] = await db.select().from(users).where(eq(users.email, seed.email)).limit(1);
     if (existing) continue;
 
-    const passwordHash = await bcrypt.hash(seed.password, 12);
+    const passwordHash = await hashPassword(seed.password);
     const [result] = await db.insert(users).values({
       email: seed.email,
       passwordHash,

@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+import { hashPassword } from "../lib/password.js";
 import { eq, inArray } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
@@ -46,7 +46,7 @@ router.post("/", async (req, res, next) => {
       throw new AppError(409, "Email already in use");
     }
 
-    const passwordHash = await bcrypt.hash(body.password, 12);
+    const passwordHash = await hashPassword(body.password);
     const [result] = await db.insert(users).values({
       email: body.email,
       passwordHash,
@@ -97,7 +97,7 @@ router.patch("/:id", async (req, res, next) => {
     if (body.email) updates.email = body.email;
     if (body.name) updates.name = body.name;
     if (body.isActive !== undefined) updates.isActive = body.isActive;
-    if (body.password) updates.passwordHash = await bcrypt.hash(body.password, 12);
+    if (body.password) updates.passwordHash = await hashPassword(body.password);
 
     if (Object.keys(updates).length > 0) {
       await db.update(users).set(updates).where(eq(users.id, userId));

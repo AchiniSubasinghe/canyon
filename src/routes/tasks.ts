@@ -33,6 +33,16 @@ const statusSchema = z.object({
   status: z.enum(["todo", "in_progress", "review", "done"]),
 });
 
+function parseDueDate(value: string | null | undefined): Date | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new AppError(400, "Invalid due date");
+  }
+  return date;
+}
+
 router.use(requireAuth);
 
 router.get("/", async (req, res, next) => {
@@ -80,7 +90,7 @@ router.post("/project/:projectId", async (req, res, next) => {
       priority: body.priority ?? "medium",
       assignedTo: body.assignedTo ?? null,
       createdBy: req.user!.id,
-      dueDate: body.dueDate ?? null,
+      dueDate: parseDueDate(body.dueDate) ?? null,
     });
 
     const task = await getTaskById(result.insertId);
@@ -111,7 +121,23 @@ router.patch("/:id", async (req, res, next) => {
     await requireTaskEdit(req.user!.id, req.user!.roles, taskId);
     const body = updateTaskSchema.parse(req.body);
 
-    await db.update(tasks).set(body).where(eq(tasks.id, taskId));
+    const updates: {
+      title?: string;
+      description?: string | null;
+      status?: "todo" | "in_progress" | "review" | "done";
+      priority?: "low" | "medium" | "high" | "urgent";
+      assignedTo?: number | null;
+      dueDate?: Date | null;
+    } = {};
+
+    if (body.title !== undefined) updates.title = body.title;
+    if (body.description !== undefined) updates.description = body.description;
+    if (body.status !== undefined) updates.status = body.status;
+    if (body.priority !== undefined) updates.priority = body.priority;
+    if (body.assignedTo !== undefined) updates.assignedTo = body.assignedTo;
+    if (body.dueDate !== undefined) updates.dueDate = parseDueDate(body.dueDate) ?? null;
+
+    await db.update(tasks).set(updates).where(eq(tasks.id, taskId));
     const task = await getTaskById(taskId);
     res.json(task);
   } catch (err) {

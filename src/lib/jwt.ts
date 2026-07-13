@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { config } from "../config.js";
 import type { RoleName } from "./roles.js";
+import { ROLE_NAMES } from "./roles.js";
 
 export interface AccessTokenPayload {
   sub: number;
@@ -11,6 +12,26 @@ export interface AccessTokenPayload {
 
 export interface RefreshTokenPayload {
   sub: number;
+}
+
+function decodePayload(token: string, secret: string): jwt.JwtPayload {
+  const decoded = jwt.verify(token, secret);
+  if (typeof decoded === "string" || !decoded || typeof decoded !== "object") {
+    throw new Error("Invalid token");
+  }
+  return decoded;
+}
+
+function toUserId(sub: unknown): number {
+  const id = typeof sub === "string" ? Number(sub) : sub;
+  if (typeof id !== "number" || Number.isNaN(id)) {
+    throw new Error("Invalid token subject");
+  }
+  return id;
+}
+
+function isRoleName(value: unknown): value is RoleName {
+  return typeof value === "string" && ROLE_NAMES.includes(value as RoleName);
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {
@@ -26,9 +47,26 @@ export function signRefreshToken(userId: number): string {
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
-  return jwt.verify(token, config.JWT_ACCESS_SECRET) as AccessTokenPayload;
+  const decoded = decodePayload(token, config.JWT_ACCESS_SECRET);
+  const { email, name, roles } = decoded;
+
+  if (typeof email !== "string" || typeof name !== "string" || !Array.isArray(roles)) {
+    throw new Error("Invalid access token payload");
+  }
+
+  if (!roles.every(isRoleName)) {
+    throw new Error("Invalid access token roles");
+  }
+
+  return {
+    sub: toUserId(decoded.sub),
+    email,
+    name,
+    roles,
+  };
 }
 
 export function verifyRefreshToken(token: string): RefreshTokenPayload {
-  return jwt.verify(token, config.JWT_REFRESH_SECRET) as RefreshTokenPayload;
+  const decoded = decodePayload(token, config.JWT_REFRESH_SECRET);
+  return { sub: toUserId(decoded.sub) };
 }
