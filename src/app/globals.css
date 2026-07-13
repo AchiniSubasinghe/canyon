@@ -88,6 +88,34 @@
     animation: panel-in 0.4s ease-out both;
   }
 
+  /* Canyon Agent chat styles (deliberate, restrained) */
+  .agent-composer {
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  }
+
+  .agent-bubble-user {
+    border-radius: 20px 20px 4px 20px;
+  }
+
+  .agent-bubble-assistant {
+    border-radius: 20px 20px 20px 4px;
+  }
+
+  .agent-suggestion {
+    transition: background-color 80ms ease, transform 80ms ease;
+  }
+
+  .agent-suggestion:hover {
+    background-color: #f8f8f8;
+    transform: translateY(-1px);
+  }
+
+  .agent-boundary {
+    font-feature-settings: "tnum";
+    letter-spacing: 1.25px;
+  }
+
+
   @keyframes panel-in {
     from {
       opacity: 0;
