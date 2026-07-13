@@ -19,14 +19,20 @@ import {
 } from "@/lib/format";
 import type { Task } from "@/lib/types";
 
-export function TaskTable({ tasks }: { tasks: Task[] }) {
+export function TaskTable({
+  tasks,
+  emptyTitle = "No tasks yet",
+  emptyDescription = "Create a task for this project to start tracking work.",
+}: {
+  tasks: Task[];
+  emptyTitle?: string;
+  emptyDescription?: string;
+}) {
   if (tasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-sm border border-dashed border-border py-16 text-center">
-        <p className="text-lg font-medium">No tasks yet</p>
-        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-          Create a task for this project to start tracking work.
-        </p>
+      <div className="flex flex-col items-center justify-center rounded-sm border border-dashed border-border bg-secondary/30 py-16 text-center">
+        <p className="text-lg font-medium tracking-tight">{emptyTitle}</p>
+        <p className="mt-1 max-w-sm text-sm text-muted-foreground">{emptyDescription}</p>
       </div>
     );
   }
@@ -48,7 +54,7 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
             <TableCell>
               <Link
                 href={`/tasks/${task.id}`}
-                className="flex items-center gap-3 font-medium hover:underline"
+                className="flex items-center gap-3 font-medium transition-colors duration-150 hover:text-foreground hover:underline hover:underline-offset-4"
               >
                 <span
                   className="h-8 w-1 rounded-full bg-primary"
@@ -56,7 +62,9 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
                 />
                 <span>
                   <span className="block">{task.title}</span>
-                  <span className="font-mono text-xs text-muted-foreground">#{task.id}</span>
+                  <span className="font-mono text-xs text-muted-foreground tabular">
+                    #{task.id}
+                  </span>
                 </span>
               </Link>
             </TableCell>
@@ -71,7 +79,7 @@ export function TaskTable({ tasks }: { tasks: Task[] }) {
             <TableCell className="text-muted-foreground">
               {task.assigneeName ?? "Unassigned"}
             </TableCell>
-            <TableCell className="font-mono text-xs text-muted-foreground">
+            <TableCell className="font-mono text-xs tabular text-muted-foreground">
               {task.dueDate ?? "—"}
             </TableCell>
           </TableRow>

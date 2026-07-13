@@ -66,7 +66,7 @@ export function MemberList({
       {members.map((member) => (
         <div
           key={member.userId}
-          className="flex items-center justify-between gap-2 rounded-sm border border-border bg-secondary px-3 py-2"
+          className="flex items-center justify-between gap-2 rounded-sm border border-border bg-secondary/60 px-3 py-2"
         >
           <div>
             <p className="text-sm font-medium">{member.name}</p>

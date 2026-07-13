@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { FolderKanban, Plus } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -60,16 +60,19 @@ export default function ProjectsPage() {
 
   return (
     <div className="space-y-8 animate-panel-in">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Portfolio</p>
-          <h1 className="mt-2 text-3xl font-semibold">Projects</h1>
+          <p className="page-kicker">Portfolio</p>
+          <h1 className="page-title">Projects</h1>
+          <p className="mt-2 max-w-prose text-muted-foreground">
+            Organize work by project and track completion.
+          </p>
         </div>
         {canCreate ? (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button>
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4" strokeWidth={1.75} />
                 Create project
               </Button>
             </DialogTrigger>
@@ -106,11 +109,20 @@ export default function ProjectsPage() {
         </div>
       ) : projects.length === 0 ? (
         <Card>
-          <CardContent className="py-16 text-center">
-            <p className="text-lg font-medium">No projects yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">
+          <CardContent className="flex flex-col items-center py-16 text-center">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-md border border-border bg-secondary">
+              <FolderKanban className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+            </div>
+            <p className="text-lg font-medium tracking-tight">No projects yet</p>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
               Create a project to assign members and add tasks.
             </p>
+            {canCreate ? (
+              <Button className="mt-6" onClick={() => setOpen(true)}>
+                <Plus className="h-4 w-4" strokeWidth={1.75} />
+                Create project
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       ) : (
@@ -121,24 +133,26 @@ export default function ProjectsPage() {
             const progress = total > 0 ? Math.round((done / total) * 100) : 0;
 
             return (
-              <Link key={project.id} href={`/projects/${project.id}`}>
-                <Card className="mono-hover h-full transition-colors">
+              <Link key={project.id} href={`/projects/${project.id}`} className="group">
+                <Card className="h-full transition-[border-color,box-shadow,background-color] duration-200 group-hover:border-primary/25 group-hover:shadow-[var(--shadow-elevated)]">
                   <CardHeader>
-                    <CardTitle>{project.name}</CardTitle>
+                    <CardTitle className="group-hover:underline group-hover:underline-offset-4">
+                      {project.name}
+                    </CardTitle>
                     <p className="text-sm text-muted-foreground line-clamp-2">
                       {project.description || "No description"}
                     </p>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="font-mono uppercase">{project.status}</span>
-                      <span className="font-mono">
+                      <span className="font-mono capitalize">{project.status}</span>
+                      <span className="font-mono tabular">
                         {done}/{total} tasks
                       </span>
                     </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-sm bg-secondary">
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-sm bg-secondary">
                       <div
-                        className="h-full rounded-sm bg-primary transition-all"
+                        className="h-full rounded-sm bg-primary transition-all duration-300"
                         style={{ width: `${progress}%` }}
                       />
                     </div>

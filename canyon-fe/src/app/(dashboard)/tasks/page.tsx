@@ -39,18 +39,19 @@ export default function TasksPage() {
   });
 
   const tasks = data?.data ?? [];
+  const hasFilters = statusFilter !== "all" || priorityFilter !== "all";
 
   return (
     <div className="space-y-8 animate-panel-in">
       <div>
-        <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Work</p>
-        <h1 className="mt-2 text-3xl font-semibold">Tasks</h1>
-        <p className="mt-1 text-muted-foreground">
+        <p className="page-kicker">Work</p>
+        <h1 className="page-title">Tasks</h1>
+        <p className="mt-2 max-w-prose text-muted-foreground">
           All tasks visible to your role, with status and priority filters.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-wrap gap-4 rounded-md border border-border bg-card px-4 py-4 shadow-[var(--shadow-panel)]">
         <div className="space-y-2">
           <Label>Status</Label>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -87,12 +88,24 @@ export default function TasksPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>
+          <CardTitle className="tabular">
             {loading ? "Loading..." : `${data?.total ?? tasks.length} tasks`}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? <Skeleton className="h-48 w-full" /> : <TaskTable tasks={tasks} />}
+          {loading ? (
+            <Skeleton className="h-48 w-full" />
+          ) : (
+            <TaskTable
+              tasks={tasks}
+              emptyTitle={hasFilters ? "No matching tasks" : undefined}
+              emptyDescription={
+                hasFilters
+                  ? "Try clearing filters to see more work."
+                  : undefined
+              }
+            />
+          )}
         </CardContent>
       </Card>
     </div>

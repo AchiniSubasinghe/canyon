@@ -40,7 +40,22 @@ export default function TaskDetailPage() {
 
   if (loading) return <Skeleton className="h-64 w-full" />;
   if (error || !data) {
-    return <p className="text-muted-foreground">{error ?? "Task not found."}</p>;
+    return (
+      <div className="mx-auto max-w-3xl space-y-4 animate-panel-in">
+        <Link
+          href="/tasks"
+          className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground hover:underline"
+        >
+          Back to tasks
+        </Link>
+        <div className="rounded-md border border-border bg-card px-6 py-12 text-center shadow-[var(--shadow-panel)]">
+          <p className="text-lg font-medium tracking-tight">Task not found</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {error ?? "This task may have been removed or you do not have access."}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const { task, assignees } = data;
@@ -50,12 +65,12 @@ export default function TaskDetailPage() {
       <div>
         <Link
           href={`/projects/${task.projectId}`}
-          className="font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
+          className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground hover:underline"
         >
           Back to project
         </Link>
-        <h1 className="mt-3 text-3xl font-semibold">{task.title}</h1>
-        <p className="mt-1 font-mono text-sm text-muted-foreground">Task #{task.id}</p>
+        <h1 className="page-title mt-3">{task.title}</h1>
+        <p className="mt-1 font-mono text-sm tabular text-muted-foreground">Task #{task.id}</p>
       </div>
 
       <Card>

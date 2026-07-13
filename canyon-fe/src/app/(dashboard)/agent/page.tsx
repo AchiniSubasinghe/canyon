@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowUp, Bot, Plus, Send } from "lucide-react";
+import { ArrowUp, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CanyonMark } from "@/components/brand/canyon-mark";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccessToken } from "@/lib/api";
@@ -45,7 +46,7 @@ function getRoleLabel(roles: RoleName[]): RoleName {
 }
 
 export default function AgentPage() {
-  const { user, isAdmin, isProjectManager } = useAuth();
+  const { user } = useAuth();
   const roles = user?.roles ?? ["team_member"];
   const currentRole = getRoleLabel(roles as RoleName[]);
 
@@ -57,6 +58,7 @@ export default function AgentPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const messageIdRef = useRef(0);
 
   const suggestions = ROLE_SUGGESTIONS[currentRole];
 
@@ -68,7 +70,6 @@ export default function AgentPage() {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  // Auto-grow textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -78,11 +79,9 @@ export default function AgentPage() {
   }, [input]);
 
   function addMessage(role: "user" | "assistant", content: string) {
-    const msg: Message = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      role,
-      content,
-    };
+    messageIdRef.current += 1;
+    const id = `msg-${messageIdRef.current}`;
+    const msg: Message = { id, role, content };
     setMessages((prev) => [...prev, msg]);
     return msg.id;
   }
@@ -146,8 +145,6 @@ export default function AgentPage() {
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-
-        // Deepseek / OpenAI streaming format: data: {...}\n\n
         const lines = chunk.split("\n");
         for (const line of lines) {
           if (line.startsWith("data: ")) {
@@ -171,11 +168,11 @@ export default function AgentPage() {
       if (!accumulated.trim()) {
         updateLastAssistant("…");
       }
-    } catch (e: any) {
-      if (e.name === "AbortError") return;
-      const msg = e instanceof Error ? e.message : "Something went wrong talking to the agent.";
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name === "AbortError") return;
+      const msg =
+        e instanceof Error ? e.message : "Something went wrong talking to the agent.";
       setError(msg);
-      // Remove the empty assistant bubble on failure
       setMessages((prev) => prev.filter((m) => !(m.id === assistantId && m.content === "")));
     } finally {
       setIsStreaming(false);
@@ -194,7 +191,7 @@ export default function AgentPage() {
     }
   }
 
-  function useSuggestion(s: Suggestion) {
+  function applySuggestion(s: Suggestion) {
     sendMessage(s.prompt);
   }
 
@@ -208,22 +205,17 @@ export default function AgentPage() {
   const boundaryText = `This agent only knows and suggests actions available to you as ${currentRole.replace(/_/g, " ")}.`;
 
   return (
-    <div className="-mx-6 -my-8 flex h-[calc(100vh-4rem)] flex-col md:-mx-8">
-      {/* Thin header */}
+    <div className="-mx-6 -my-6 flex h-[calc(100dvh-3rem)] flex-col md:-mx-8 md:-my-8 md:h-dvh">
       <div className="flex items-center justify-between border-b border-border px-6 py-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-sm border border-border bg-background">
-            <Bot className="h-4 w-4" />
-          </div>
+          <CanyonMark size="sm" />
           <div>
-            <div className="text-sm font-semibold">Agent</div>
-            <div className="font-mono text-[10px] uppercase tracking-[2px] text-muted-foreground">
-              Canyon • role-aware
-            </div>
+            <div className="text-sm font-semibold tracking-tight">Agent</div>
+            <div className="font-mono text-[11px] text-muted-foreground">Role-aware assistant</div>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="rounded-sm border border-border bg-muted px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          <div className="rounded-sm border border-border bg-muted px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
             {currentRole.replace(/_/g, " ")}
           </div>
           {messages.length > 0 && (
@@ -234,27 +226,28 @@ export default function AgentPage() {
         </div>
       </div>
 
-      {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 pt-8 pb-4 md:px-6">
+      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-8 md:px-6">
         <div className="mx-auto w-full max-w-3xl space-y-6">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-sm border border-border bg-background">
-                <Bot className="h-6 w-6" />
-              </div>
-              <h1 className="text-3xl font-semibold tracking-tight">What are you working on in Canyon?</h1>
+              <CanyonMark size="lg" />
+              <h1 className="mt-5 text-3xl font-semibold tracking-tight">
+                What are you working on?
+              </h1>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                I know exactly what your role can and cannot do. Ask anything about your projects, tasks, or how things work here.
+                I know what your role can and cannot do. Ask about projects, tasks, or how Canyon
+                works.
               </p>
 
-              <div className="mt-8 grid w-full max-w-xl gap-2 sm:grid-cols-1">
+              <div className="mt-8 grid w-full max-w-xl gap-2">
                 {suggestions.map((s, i) => (
                   <button
                     key={i}
-                    onClick={() => useSuggestion(s)}
-                    className="agent-suggestion flex items-center gap-3 rounded-xl border border-border bg-white px-4 py-3 text-left text-sm active:bg-[#f0f0f0]"
+                    type="button"
+                    onClick={() => applySuggestion(s)}
+                    className="agent-suggestion flex items-center gap-3 rounded-sm border border-border bg-card px-4 py-3 text-left text-sm active:bg-secondary"
                   >
-                    <Plus className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <Plus className="h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
                     <span>{s.label}</span>
                   </button>
                 ))}
@@ -262,12 +255,15 @@ export default function AgentPage() {
             </div>
           ) : (
             messages.map((m) => (
-              <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                key={m.id}
+                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+              >
                 <div
-                  className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-[15px] leading-relaxed ${
+                  className={`max-w-[80%] whitespace-pre-wrap px-4 py-3 text-[15px] leading-relaxed ${
                     m.role === "user"
-                      ? "bg-[#111] text-white"
-                      : "bg-[#f5f5f5] text-foreground"
+                      ? "agent-bubble-user bg-primary text-primary-foreground"
+                      : "agent-bubble-assistant bg-muted text-foreground"
                   }`}
                 >
                   {m.content || (isStreaming ? "…" : "")}
@@ -278,14 +274,14 @@ export default function AgentPage() {
 
           {isStreaming && (
             <div className="flex justify-start">
-              <div className="max-w-[80%] rounded-2xl bg-[#f5f5f5] px-4 py-3 text-sm text-muted-foreground">
+              <div className="agent-bubble-assistant max-w-[80%] bg-muted px-4 py-3 text-sm text-muted-foreground">
                 Canyon Agent is thinking…
               </div>
             </div>
           )}
 
           {error && (
-            <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            <div className="rounded-sm border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
               {error}
             </div>
           )}
@@ -294,22 +290,20 @@ export default function AgentPage() {
         </div>
       </div>
 
-      {/* Composer + boundary bar */}
       <div className="border-t border-border bg-background px-4 pb-6 pt-4 md:px-6">
         <div className="mx-auto w-full max-w-3xl">
-          {/* Signature boundary element — the one memorable contract */}
           <div className="agent-boundary mb-2 px-1 font-mono text-[10px] uppercase text-muted-foreground/70">
             {boundaryText}
           </div>
 
-          <div className="flex items-end gap-2 rounded-3xl border border-border bg-white px-4 py-2 shadow-sm">
+          <div className="agent-composer flex items-end gap-2 rounded-md border border-border bg-card px-3 py-2">
             <button
               type="button"
-              className="mb-1.5 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+              className="mb-1 flex h-8 w-8 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-150 hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => textareaRef.current?.focus()}
               aria-label="Add attachment (not yet supported)"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4" strokeWidth={1.75} />
             </button>
 
             <textarea
@@ -325,16 +319,16 @@ export default function AgentPage() {
 
             <Button
               size="icon"
-              className="mb-1 h-9 w-9 rounded-full"
+              className="mb-0.5 h-9 w-9 rounded-sm"
               onClick={handleSend}
               disabled={!input.trim() || isStreaming}
             >
-              <ArrowUp className="h-4 w-4" />
+              <ArrowUp className="h-4 w-4" strokeWidth={1.75} />
             </Button>
           </div>
 
           <p className="mt-2 px-1 text-center font-mono text-[10px] text-muted-foreground/50">
-            Press Enter to send • Shift + Enter for newline
+            Press Enter to send · Shift + Enter for newline
           </p>
         </div>
       </div>

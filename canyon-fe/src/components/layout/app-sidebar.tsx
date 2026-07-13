@@ -6,11 +6,11 @@ import {
   LayoutDashboard,
   ListTodo,
   LogOut,
-  Shield,
   Users,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { CanyonMark } from "@/components/brand/canyon-mark";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
@@ -41,26 +41,30 @@ export function AppSidebar() {
     return false;
   });
 
+  const initials =
+    user?.name
+      ?.split(" ")
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() ?? "?";
+
   async function handleLogout() {
     await logout();
     router.push("/login");
   }
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-border bg-[#fafafa] p-4">
+    <aside className="sticky top-0 flex h-dvh w-60 shrink-0 flex-col border-r border-border bg-sidebar p-4">
       <div className="mb-8 flex items-center gap-3 px-2">
-        <div className="flex h-9 w-9 items-center justify-center border border-border bg-background">
-          <Shield className="h-5 w-5" />
-        </div>
+        <CanyonMark />
         <div>
-          <p className="text-sm font-semibold">Canyon</p>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-            Task Platform
-          </p>
+          <p className="text-sm font-semibold tracking-tight">Canyon</p>
+          <p className="font-mono text-[11px] text-muted-foreground">Task platform</p>
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1">
+      <nav className="flex flex-1 flex-col gap-0.5" aria-label="Main">
         {visibleItems.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
@@ -68,13 +72,13 @@ export function AppSidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm transition-colors",
+                "flex items-center gap-3 rounded-sm px-3 py-2.5 text-sm transition-[color,background-color,transform] duration-200",
                 active
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground"
               )}
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
               {item.label}
             </Link>
           );
@@ -82,12 +86,20 @@ export function AppSidebar() {
       </nav>
 
       <div className="mt-auto space-y-3 border-t border-border pt-4">
-        <div className="px-2">
-          <p className="text-sm font-medium">{user?.name}</p>
-          <p className="font-mono text-xs text-muted-foreground">{user?.email}</p>
+        <div className="flex items-center gap-3 px-2">
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 font-mono text-[11px] font-medium text-foreground"
+            aria-hidden
+          >
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{user?.name}</p>
+            <p className="truncate font-mono text-xs text-muted-foreground">{user?.email}</p>
+          </div>
         </div>
         <Button variant="ghost" className="w-full justify-start" onClick={handleLogout}>
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-4 w-4" strokeWidth={1.75} />
           Sign out
         </Button>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus, UserPlus } from "lucide-react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -127,7 +128,22 @@ export default function ProjectDetailPage() {
   }
 
   if (error || !data) {
-    return <p className="text-muted-foreground">{error ?? "Project not found."}</p>;
+    return (
+      <div className="space-y-4 animate-panel-in">
+        <Link
+          href="/projects"
+          className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground hover:underline"
+        >
+          Back to projects
+        </Link>
+        <div className="rounded-md border border-border bg-card px-6 py-12 text-center shadow-[var(--shadow-panel)]">
+          <p className="text-lg font-medium tracking-tight">Project not found</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {error ?? "This project may have been removed or you do not have access."}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const { project, tasks, assignees, candidateMembers } = data;
@@ -136,12 +152,18 @@ export default function ProjectDetailPage() {
     <div className="space-y-8 animate-panel-in">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Project</p>
-          <h1 className="mt-2 text-3xl font-semibold">{project.name}</h1>
+          <Link
+            href="/projects"
+            className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground hover:underline"
+          >
+            Back to projects
+          </Link>
+          <p className="page-kicker mt-3">Project</p>
+          <h1 className="page-title">{project.name}</h1>
           <p className="mt-2 max-w-2xl text-muted-foreground">
             {project.description || "No description provided."}
           </p>
-          <Badge className="mt-3" variant="default">
+          <Badge className="mt-3 capitalize" variant="default">
             {project.status}
           </Badge>
         </div>
@@ -158,7 +180,7 @@ export default function ProjectDetailPage() {
             <Dialog open={memberOpen} onOpenChange={setMemberOpen}>
               <DialogTrigger asChild>
                 <Button variant="secondary">
-                  <UserPlus className="h-4 w-4" />
+                  <UserPlus className="h-4 w-4" strokeWidth={1.75} />
                   Assign member
                 </Button>
               </DialogTrigger>
@@ -202,7 +224,7 @@ export default function ProjectDetailPage() {
             <Dialog open={taskOpen} onOpenChange={setTaskOpen}>
               <DialogTrigger asChild>
                 <Button>
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-4 w-4" strokeWidth={1.75} />
                   Create task
                 </Button>
               </DialogTrigger>

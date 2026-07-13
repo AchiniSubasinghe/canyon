@@ -32,40 +32,39 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8 animate-panel-in">
       <div>
-        <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Overview</p>
-        <h1 className="mt-2 text-3xl font-semibold">
-          Welcome back, {user?.name.split(" ")[0]}
-        </h1>
-        <p className="mt-1 text-muted-foreground">
-          Track projects, assignments, and task progress from your command surface.
+        <p className="page-kicker">Overview</p>
+        <h1 className="page-title">Welcome back, {user?.name.split(" ")[0]}</h1>
+        <p className="mt-2 max-w-prose text-muted-foreground">
+          Your projects and open work at a glance.
         </p>
       </div>
 
       {loading ? (
-        <div className="grid gap-4 md:grid-cols-3">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
+        <div className="grid gap-4 md:grid-cols-2 md:grid-rows-2">
+          <Skeleton className="h-48 md:row-span-2" />
+          <Skeleton className="h-28" />
+          <Skeleton className="h-28" />
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
-          <MetricCard
-            title="Projects"
-            value={projects.length}
-            hint="Active portfolio"
-            icon={<FolderKanban className="h-4 w-4 text-muted-foreground" />}
-          />
+        <div className="grid gap-4 md:grid-cols-2 md:grid-rows-2">
           <MetricCard
             title="Open tasks"
             value={openTasks}
             hint="Needs attention"
-            icon={<ListTodo className="h-4 w-4 text-muted-foreground" />}
+            featured
+            icon={<ListTodo className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />}
+          />
+          <MetricCard
+            title="Projects"
+            value={projects.length}
+            hint="Active portfolio"
+            icon={<FolderKanban className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />}
           />
           <MetricCard
             title="Completed"
             value={completedTasks}
             hint="Delivered work"
-            icon={<CheckCircle2 className="h-4 w-4 text-muted-foreground" />}
+            icon={<CheckCircle2 className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />}
           />
         </div>
       )}

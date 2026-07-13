@@ -88,15 +88,18 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-8 animate-panel-in">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">Administration</p>
-          <h1 className="mt-2 text-3xl font-semibold">Users</h1>
+          <p className="page-kicker">Administration</p>
+          <h1 className="page-title">Users</h1>
+          <p className="mt-2 max-w-prose text-muted-foreground">
+            Manage accounts, roles, and access.
+          </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button>
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4" strokeWidth={1.75} />
               Create user
             </Button>
           </DialogTrigger>
@@ -150,6 +153,13 @@ export default function AdminUsersPage() {
         <CardContent>
           {loading ? (
             <Skeleton className="h-48 w-full" />
+          ) : users.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-sm border border-dashed border-border bg-secondary/30 py-16 text-center">
+              <p className="text-lg font-medium tracking-tight">No users yet</p>
+              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                Create a user to grant access to Canyon.
+              </p>
+            </div>
           ) : (
             <Table>
               <TableHeader>

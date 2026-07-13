@@ -17,7 +17,7 @@ function SelectTrigger({
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        "flex h-10 w-full items-center justify-between rounded-sm border border-border bg-input px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring",
+        "flex h-10 w-full items-center justify-between rounded-sm border border-border bg-input px-3 py-2 text-sm outline-none transition-[border-color,box-shadow] duration-200 focus:ring-2 focus:ring-ring",
         className
       )}
       {...props}
@@ -39,7 +39,7 @@ function SelectContent({
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
         className={cn(
-          "z-50 min-w-[8rem] overflow-hidden rounded-sm border border-border bg-popover p-1 text-popover-foreground",
+          "z-[var(--z-modal)] min-w-[8rem] overflow-hidden rounded-sm border border-border bg-popover p-1 text-popover-foreground shadow-[var(--shadow-elevated)]",
           className
         )}
         {...props}

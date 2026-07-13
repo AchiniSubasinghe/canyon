@@ -31,7 +31,7 @@ export function TaskDeleteButton({
   }
 
   return (
-    <Button variant="ghost" onClick={handleDelete} disabled={deleting}>
+    <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
       {deleting ? "Deleting..." : "Delete task"}
     </Button>
   );

@@ -6,7 +6,7 @@ import "./globals.css";
 
 const ibmPlexSans = IBM_Plex_Sans({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-sans",
 });
 
@@ -17,8 +17,8 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Canyon — Project & Task Management",
-  description: "Business task management platform for teams",
+  title: "Canyon — Project & task management",
+  description: "Track projects, assignments, and task progress for your team.",
 };
 
 export default function RootLayout({
@@ -29,6 +29,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${ibmPlexSans.variable} ${ibmPlexMono.variable} antialiased`}>
+        <a href="#main-content" className="skip-link">
+          Skip to content
+        </a>
+        <div className="grain-overlay" aria-hidden />
         <AuthProvider>
           {children}
           <Toaster theme="light" position="top-right" />

@@ -4,15 +4,17 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 outline-none focus-visible:ring-2 focus-visible:ring-ring",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-sm text-sm font-medium outline-none transition-[color,background-color,border-color,transform,opacity,box-shadow] duration-200 disabled:pointer-events-none disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98]",
   {
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        secondary: "bg-secondary text-secondary-foreground border border-border hover:bg-muted",
-        ghost: "hover:bg-secondary text-foreground",
-        destructive: "border border-primary bg-background text-primary hover:bg-primary hover:text-primary-foreground",
-        outline: "border border-border bg-background hover:bg-secondary",
+        secondary:
+          "border border-border bg-secondary text-secondary-foreground hover:bg-muted",
+        ghost: "text-foreground hover:bg-secondary",
+        destructive:
+          "border border-destructive/40 bg-background text-destructive hover:bg-destructive hover:text-destructive-foreground",
+        outline: "border border-border bg-card hover:bg-secondary",
       },
       size: {
         default: "h-10 px-4 py-2",
