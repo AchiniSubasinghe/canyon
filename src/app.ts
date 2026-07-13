@@ -4,6 +4,7 @@ import express from "express";
 import helmet from "helmet";
 import { config } from "./config.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import agentRouter from "./routes/agent.js";
 import authRouter from "./routes/auth.js";
 import projectsRouter from "./routes/projects.js";
 import tasksRouter from "./routes/tasks.js";
@@ -39,6 +40,7 @@ export function createApp() {
   app.use("/api/v1/users", usersRouter);
   app.use("/api/v1/projects", projectsRouter);
   app.use("/api/v1/tasks", tasksRouter);
+  app.use("/api/v1/agent", agentRouter);
 
   app.use(errorHandler);
 

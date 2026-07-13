@@ -14,6 +14,7 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(16),
   JWT_REFRESH_EXPIRY: z.string().default("7d"),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
+  DEEPSEEK_API_KEY: z.string().min(1, "DEEPSEEK_API_KEY is required for the Canyon Agent"),
 });
 
 export const config = envSchema.parse(process.env);
