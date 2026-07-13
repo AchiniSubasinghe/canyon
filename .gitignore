@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+.next/
+out/
+build/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs & caches
+*.log
+*.tsbuildinfo
+.eslintcache
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Local AI / agent state (never commit)
+.claude/
+
+# Misc
+*.tgz

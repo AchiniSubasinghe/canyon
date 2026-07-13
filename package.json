@@ -1,0 +1,16 @@
+{
+  "name": "canyon",
+  "private": true,
+  "workspaces": [
+    "canyon-be",
+    "canyon-fe",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:be": "bun run --filter canyon-be dev",
+    "dev:fe": "bun run --filter canyon dev",
+    "typecheck": "bun run --filter canyon-be typecheck",
+    "test": "bun run --filter canyon-be test",
+    "ci": "bun run typecheck && bun run test && bun run --filter canyon lint && bun run --filter canyon build"
+  }
+}

@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mariadb:11
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: canyon_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Migrate and seed
+        working-directory: canyon-be
+        env:
+          PORT: 3001
+          NODE_ENV: test
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: root
+          DB_NAME: canyon_test
+          JWT_ACCESS_SECRET: test-access-secret
+          JWT_ACCESS_EXPIRY: 15m
+          JWT_REFRESH_SECRET: test-refresh-secret
+          JWT_REFRESH_EXPIRY: 7d
+          CORS_ORIGIN: http://localhost:3000
+        run: |
+          bun run db:migrate
+          bun run db:seed
+
+      - name: Typecheck
+        working-directory: canyon-be
+        run: bun run typecheck
+
+      - name: Test
+        working-directory: canyon-be
+        env:
+          PORT: 3001
+          NODE_ENV: test
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: root
+          DB_NAME: canyon_test
+          JWT_ACCESS_SECRET: test-access-secret
+          JWT_ACCESS_EXPIRY: 15m
+          JWT_REFRESH_SECRET: test-refresh-secret
+          JWT_REFRESH_EXPIRY: 7d
+          CORS_ORIGIN: http://localhost:3000
+        run: bun test
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Lint
+        working-directory: canyon-fe
+        run: bun run lint
+
+      - name: Build
+        working-directory: canyon-fe
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001/api/v1
+        run: bun run build
