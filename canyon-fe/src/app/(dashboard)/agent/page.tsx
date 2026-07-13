@@ -3,6 +3,7 @@
 import { ArrowUp, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CanyonMark } from "@/components/brand/canyon-mark";
+import { MarkdownContent } from "@/components/agent/markdown-content";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccessToken } from "@/lib/api";
@@ -223,6 +224,33 @@ export default function AgentPage() {
               New chat
             </Button>
           )}
+
+          {process.env.NODE_ENV === "development" && messages.length === 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const sample = `As a **project_manager** you can:
+
+- Create new projects
+- Manage members on projects where you are a *manager*
+- Create, edit, and delete tasks in those projects
+
+Example inline code: update the status with \`PATCH /tasks/:id/status\`.
+
+> Remember: only administrators can delete entire projects.
+
+\`\`\`ts
+// You cannot do this as a team_member
+await api.post('/projects', { name: 'New one' })
+\`\`\`
+`;
+                setMessages([{ id: "dev-sample", role: "assistant", content: sample.trim() }]);
+              }}
+            >
+              Load sample markdown
+            </Button>
+          )}
         </div>
       </div>
 
@@ -260,13 +288,17 @@ export default function AgentPage() {
                 className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[80%] whitespace-pre-wrap px-4 py-3 text-[15px] leading-relaxed ${
+                  className={`max-w-[80%] px-4 py-3 text-[15px] leading-relaxed ${
                     m.role === "user"
-                      ? "agent-bubble-user bg-primary text-primary-foreground"
+                      ? "agent-bubble-user whitespace-pre-wrap bg-primary text-primary-foreground"
                       : "agent-bubble-assistant bg-muted text-foreground"
                   }`}
                 >
-                  {m.content || (isStreaming ? "…" : "")}
+                  {m.role === "assistant" ? (
+                    <MarkdownContent content={m.content || (isStreaming ? "…" : "")} />
+                  ) : (
+                    m.content || (isStreaming ? "…" : "")
+                  )}
                 </div>
               </div>
             ))
