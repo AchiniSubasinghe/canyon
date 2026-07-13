@@ -4,11 +4,19 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { roles, userRoles, users } from "../db/schema.js";
+import { parsePagination } from "../lib/pagination.js";
 import { ROLE_NAMES } from "../lib/roles.js";
 import { requireAuth } from "../middleware/auth.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { requireRoles } from "../middleware/rbac.js";
-import { getUserByEmail, getUserById, getUserRoles, listUsers } from "../services/users.js";
+import { revokeAllUserTokens } from "../services/tokens.js";
+import {
+  formatUser,
+  getUserByEmail,
+  getUserById,
+  getUserRoles,
+  listUsers,
+} from "../services/users.js";
 
 const router = Router();
 
@@ -27,12 +35,45 @@ const updateUserSchema = z.object({
   roles: z.array(z.enum(ROLE_NAMES)).min(1).optional(),
 });
 
+const listUsersQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+  search: z.string().optional(),
+  isActive: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === "true")),
+});
+
 router.use(requireAuth, requireRoles("administrator"));
 
-router.get("/", async (_req, res, next) => {
+router.get("/", async (req, res, next) => {
   try {
-    const result = await listUsers();
-    res.json(result);
+    const query = listUsersQuerySchema.parse(req.query);
+    const pagination = parsePagination(query);
+    const { rows, total } = await listUsers(pagination, {
+      search: query.search,
+      isActive: query.isActive,
+    });
+    res.json({ data: rows, total, limit: pagination.limit, offset: pagination.offset });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/:id", async (req, res, next) => {
+  try {
+    const userId = Number(req.params.id);
+    if (Number.isNaN(userId)) {
+      throw new AppError(400, "Invalid user id");
+    }
+
+    const user = await getUserById(userId);
+    if (!user) {
+      throw new AppError(404, "User not found");
+    }
+
+    res.json(await formatUser(user));
   } catch (err) {
     next(err);
   }
@@ -93,6 +134,13 @@ router.patch("/:id", async (req, res, next) => {
       throw new AppError(404, "User not found");
     }
 
+    if (body.email && body.email !== user.email) {
+      const existing = await getUserByEmail(body.email);
+      if (existing && existing.id !== userId) {
+        throw new AppError(409, "Email already in use");
+      }
+    }
+
     const updates: Partial<typeof users.$inferInsert> = {};
     if (body.email) updates.email = body.email;
     if (body.name) updates.name = body.name;
@@ -101,6 +149,10 @@ router.patch("/:id", async (req, res, next) => {
 
     if (Object.keys(updates).length > 0) {
       await db.update(users).set(updates).where(eq(users.id, userId));
+    }
+
+    if (body.password) {
+      await revokeAllUserTokens(userId);
     }
 
     if (body.roles) {
@@ -154,6 +206,7 @@ router.delete("/:id", async (req, res, next) => {
     }
 
     await db.update(users).set({ isActive: false }).where(eq(users.id, userId));
+    await revokeAllUserTokens(userId);
     res.json({ message: "User deactivated" });
   } catch (err) {
     next(err);

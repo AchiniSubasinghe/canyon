@@ -12,6 +12,7 @@ export interface AccessTokenPayload {
 
 export interface RefreshTokenPayload {
   sub: number;
+  jti: string;
 }
 
 function decodePayload(token: string, secret: string): jwt.JwtPayload {
@@ -40,8 +41,8 @@ export function signAccessToken(payload: AccessTokenPayload): string {
   });
 }
 
-export function signRefreshToken(userId: number): string {
-  return jwt.sign({ sub: userId } satisfies RefreshTokenPayload, config.JWT_REFRESH_SECRET, {
+export function signRefreshToken(userId: number, jti: string): string {
+  return jwt.sign({ sub: userId, jti } satisfies RefreshTokenPayload, config.JWT_REFRESH_SECRET, {
     expiresIn: config.JWT_REFRESH_EXPIRY as jwt.SignOptions["expiresIn"],
   });
 }
@@ -68,5 +69,9 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
 
 export function verifyRefreshToken(token: string): RefreshTokenPayload {
   const decoded = decodePayload(token, config.JWT_REFRESH_SECRET);
-  return { sub: toUserId(decoded.sub) };
+  const { jti } = decoded;
+  if (typeof jti !== "string" || !jti) {
+    throw new Error("Invalid refresh token jti");
+  }
+  return { sub: toUserId(decoded.sub), jti };
 }

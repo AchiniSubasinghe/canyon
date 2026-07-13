@@ -12,8 +12,11 @@
     "skipLibCheck": true,
     "types": ["bun"],
     "noUncheckedIndexedAccess": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@canyon/shared": ["../packages/shared/src/index.ts"]
+    }
   },
-  "include": ["src/**/*", "drizzle.config.ts"],
+  "include": ["src/**/*", "test/**/*", "drizzle.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

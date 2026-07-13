@@ -2,11 +2,16 @@ import { verifyPassword } from "../lib/password.js";
 import { Router } from "express";
 import { z } from "zod";
 import { config } from "../config.js";
-import { db } from "../db/index.js";
-import { users } from "../db/schema.js";
-import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt.js";
+import { signAccessToken } from "../lib/jwt.js";
 import { requireAuth } from "../middleware/auth.js";
 import { AppError } from "../middleware/errorHandler.js";
+import {
+  createRefreshToken,
+  decodeRefreshCookie,
+  revokeRefreshToken,
+  rotateRefreshToken,
+  validateRefreshToken,
+} from "../services/tokens.js";
 import { getUserByEmail, getUserById, getUserRoles } from "../services/users.js";
 
 const router = Router();
@@ -15,6 +20,15 @@ const loginSchema = z.object({
   email: z.email(),
   password: z.string().min(1),
 });
+
+function setRefreshCookie(res: import("express").Response, token: string) {
+  res.cookie("refreshToken", token, {
+    httpOnly: true,
+    secure: config.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+}
 
 router.post("/login", async (req, res, next) => {
   try {
@@ -37,14 +51,9 @@ router.post("/login", async (req, res, next) => {
       name: user.name,
       roles,
     });
-    const refreshToken = signRefreshToken(user.id);
+    const refreshToken = await createRefreshToken(user.id);
 
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: config.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    setRefreshCookie(res, refreshToken);
 
     res.json({
       accessToken,
@@ -67,10 +76,15 @@ router.post("/refresh", async (req, res, next) => {
       throw new AppError(401, "Refresh token required");
     }
 
-    const payload = verifyRefreshToken(token);
-    const user = await getUserById(payload.sub);
+    const { sub, jti } = decodeRefreshCookie(token);
+    const user = await getUserById(sub);
 
     if (!user || !user.isActive) {
+      throw new AppError(401, "Invalid refresh token");
+    }
+
+    const valid = await validateRefreshToken(jti, sub);
+    if (!valid) {
       throw new AppError(401, "Invalid refresh token");
     }
 
@@ -81,16 +95,31 @@ router.post("/refresh", async (req, res, next) => {
       name: user.name,
       roles,
     });
+    const newRefreshToken = await rotateRefreshToken(jti, user.id);
 
+    setRefreshCookie(res, newRefreshToken);
     res.json({ accessToken });
   } catch (err) {
     next(err);
   }
 });
 
-router.post("/logout", requireAuth, (req, res) => {
-  res.clearCookie("refreshToken");
-  res.json({ message: "Logged out" });
+router.post("/logout", requireAuth, async (req, res, next) => {
+  try {
+    const token = req.cookies?.refreshToken as string | undefined;
+    if (token) {
+      try {
+        const { jti } = decodeRefreshCookie(token);
+        await revokeRefreshToken(jti);
+      } catch {
+        // ignore invalid cookie on logout
+      }
+    }
+    res.clearCookie("refreshToken");
+    res.json({ message: "Logged out" });
+  } catch (err) {
+    next(err);
+  }
 });
 
 router.get("/me", requireAuth, async (req, res, next) => {

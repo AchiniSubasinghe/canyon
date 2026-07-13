@@ -4,9 +4,10 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import { tasks } from "../db/schema.js";
 import { isAdmin, isProjectManager } from "../lib/roles.js";
+import { parsePagination } from "../lib/pagination.js";
 import { requireAuth } from "../middleware/auth.js";
 import { AppError } from "../middleware/errorHandler.js";
-import { requireProjectAccess, requireProjectManage } from "../services/projects.js";
+import { requireProjectManage, requireProjectMember } from "../services/projects.js";
 import {
   canUpdateTaskStatus,
   getTaskById,
@@ -33,6 +34,14 @@ const statusSchema = z.object({
   status: z.enum(["todo", "in_progress", "review", "done"]),
 });
 
+const listTasksQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+  status: z.enum(["todo", "in_progress", "review", "done"]).optional(),
+  priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
+  projectId: z.coerce.number().int().positive().optional(),
+});
+
 function parseDueDate(value: string | null | undefined): Date | null | undefined {
   if (value === undefined) return undefined;
   if (value === null) return null;
@@ -47,8 +56,14 @@ router.use(requireAuth);
 
 router.get("/", async (req, res, next) => {
   try {
-    const result = await listTasksForUser(req.user!.id, req.user!.roles);
-    res.json(result);
+    const query = listTasksQuerySchema.parse(req.query);
+    const pagination = parsePagination(query);
+    const { rows, total } = await listTasksForUser(req.user!.id, req.user!.roles, pagination, {
+      status: query.status,
+      priority: query.priority,
+      projectId: query.projectId,
+    });
+    res.json({ data: rows, total, limit: pagination.limit, offset: pagination.offset });
   } catch (err) {
     next(err);
   }
@@ -59,8 +74,16 @@ router.get("/project/:projectId", async (req, res, next) => {
     const projectId = Number(req.params.projectId);
     if (Number.isNaN(projectId)) throw new AppError(400, "Invalid project id");
 
-    const result = await listTasksForProject(req.user!.id, req.user!.roles, projectId);
-    res.json(result);
+    const query = listTasksQuerySchema.parse(req.query);
+    const pagination = parsePagination(query);
+    const { rows, total } = await listTasksForProject(
+      req.user!.id,
+      req.user!.roles,
+      projectId,
+      pagination,
+      { status: query.status, priority: query.priority }
+    );
+    res.json({ data: rows, total, limit: pagination.limit, offset: pagination.offset });
   } catch (err) {
     next(err);
   }
@@ -81,6 +104,10 @@ router.post("/project/:projectId", async (req, res, next) => {
 
     await requireProjectManage(req.user!.id, req.user!.roles, projectId);
     const body = createTaskSchema.parse(req.body);
+
+    if (body.assignedTo) {
+      await requireProjectMember(projectId, body.assignedTo);
+    }
 
     const [result] = await db.insert(tasks).values({
       projectId,
@@ -120,6 +147,13 @@ router.patch("/:id", async (req, res, next) => {
 
     await requireTaskEdit(req.user!.id, req.user!.roles, taskId);
     const body = updateTaskSchema.parse(req.body);
+
+    const existing = await getTaskById(taskId);
+    if (!existing) throw new AppError(404, "Task not found");
+
+    if (body.assignedTo) {
+      await requireProjectMember(existing.projectId, body.assignedTo);
+    }
 
     const updates: {
       title?: string;

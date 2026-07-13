@@ -3,11 +3,14 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import { projectMembers, projects } from "../db/schema.js";
-import { isAdmin, isProjectManager } from "../lib/roles.js";
+import { parsePagination } from "../lib/pagination.js";
+import { isAdmin } from "../lib/roles.js";
 import { requireAuth } from "../middleware/auth.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { requireRoles } from "../middleware/rbac.js";
 import {
+  getAssignableUsers,
+  getCandidateMembers,
   getProjectById,
   getProjectMembers,
   getProjectStats,
@@ -32,18 +35,38 @@ const memberSchema = z.object({
   memberRole: z.enum(["manager", "member"]).default("member"),
 });
 
+const updateMemberSchema = z.object({
+  memberRole: z.enum(["manager", "member"]),
+});
+
+const listProjectsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+  status: z.enum(["planning", "active", "on_hold", "completed"]).optional(),
+  search: z.string().optional(),
+});
+
 router.use(requireAuth);
 
 router.get("/", async (req, res, next) => {
   try {
-    const result = await listProjectsForUser(req.user!.id, req.user!.roles);
-    const withStats = await Promise.all(
-      result.map(async (project) => {
+    const query = listProjectsQuerySchema.parse(req.query);
+    const pagination = parsePagination(query);
+    const { rows, total } = await listProjectsForUser(
+      req.user!.id,
+      req.user!.roles,
+      pagination,
+      { status: query.status, search: query.search }
+    );
+
+    const data = await Promise.all(
+      rows.map(async (project) => {
         const stats = await getProjectStats(project.id);
         return { ...project, ...stats };
       })
     );
-    res.json(withStats);
+
+    res.json({ data, total, limit: pagination.limit, offset: pagination.offset });
   } catch (err) {
     next(err);
   }
@@ -67,6 +90,32 @@ router.post("/", requireRoles("administrator", "project_manager"), async (req, r
 
     const project = await getProjectById(result.insertId);
     res.status(201).json(project);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/:id/candidate-members", async (req, res, next) => {
+  try {
+    const projectId = Number(req.params.id);
+    if (Number.isNaN(projectId)) throw new AppError(400, "Invalid project id");
+
+    await requireProjectManage(req.user!.id, req.user!.roles, projectId);
+    const candidates = await getCandidateMembers(projectId);
+    res.json(candidates);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/:id/assignable-users", async (req, res, next) => {
+  try {
+    const projectId = Number(req.params.id);
+    if (Number.isNaN(projectId)) throw new AppError(400, "Invalid project id");
+
+    await requireProjectAccess(req.user!.id, req.user!.roles, projectId);
+    const assignable = await getAssignableUsers(projectId);
+    res.json(assignable);
   } catch (err) {
     next(err);
   }
@@ -155,6 +204,39 @@ router.post("/:id/members", async (req, res, next) => {
 
     const members = await getProjectMembers(projectId);
     res.status(201).json(members);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch("/:id/members/:userId", async (req, res, next) => {
+  try {
+    const projectId = Number(req.params.id);
+    const userId = Number(req.params.userId);
+    if (Number.isNaN(projectId) || Number.isNaN(userId)) {
+      throw new AppError(400, "Invalid id");
+    }
+
+    await requireProjectManage(req.user!.id, req.user!.roles, projectId);
+    const { memberRole } = updateMemberSchema.parse(req.body);
+
+    const [existing] = await db
+      .select()
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+
+    if (!existing) {
+      throw new AppError(404, "Member not found");
+    }
+
+    await db
+      .update(projectMembers)
+      .set({ memberRole })
+      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)));
+
+    const members = await getProjectMembers(projectId);
+    res.json(members);
   } catch (err) {
     next(err);
   }

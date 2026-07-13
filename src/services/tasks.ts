@@ -1,63 +1,99 @@
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, count, eq, inArray, or } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { projectMembers, tasks, users } from "../db/schema.js";
+import type { PaginationInput } from "../lib/pagination.js";
 import { isAdmin, isProjectManager, type RoleName } from "../lib/roles.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { canAccessProject, canManageProject } from "./projects.js";
 
+export interface TaskListFilters {
+  status?: "todo" | "in_progress" | "review" | "done";
+  priority?: "low" | "medium" | "high" | "urgent";
+  projectId?: number;
+}
+
+const taskSelect = {
+  id: tasks.id,
+  projectId: tasks.projectId,
+  title: tasks.title,
+  description: tasks.description,
+  status: tasks.status,
+  priority: tasks.priority,
+  assignedTo: tasks.assignedTo,
+  assigneeName: users.name,
+  createdBy: tasks.createdBy,
+  dueDate: tasks.dueDate,
+  createdAt: tasks.createdAt,
+  updatedAt: tasks.updatedAt,
+};
+
+function buildTaskFilters(filters: TaskListFilters) {
+  const conditions = [];
+  if (filters.status) {
+    conditions.push(eq(tasks.status, filters.status));
+  }
+  if (filters.priority) {
+    conditions.push(eq(tasks.priority, filters.priority));
+  }
+  if (filters.projectId) {
+    conditions.push(eq(tasks.projectId, filters.projectId));
+  }
+  return conditions.length > 0 ? and(...conditions) : undefined;
+}
+
+async function queryTasks(
+  baseWhere: ReturnType<typeof and> | ReturnType<typeof eq> | ReturnType<typeof or> | undefined,
+  pagination: PaginationInput,
+  filters: TaskListFilters
+) {
+  const filterWhere = buildTaskFilters(filters);
+  const where = baseWhere && filterWhere ? and(baseWhere, filterWhere) : baseWhere ?? filterWhere;
+
+  const [totalRow] = await db.select({ total: count() }).from(tasks).where(where);
+  const total = Number(totalRow?.total ?? 0);
+
+  const rows = await db
+    .select(taskSelect)
+    .from(tasks)
+    .leftJoin(users, eq(tasks.assignedTo, users.id))
+    .where(where)
+    .orderBy(tasks.updatedAt)
+    .limit(pagination.limit)
+    .offset(pagination.offset);
+
+  return { rows, total };
+}
+
 export async function listTasksForProject(
   userId: number,
   userRoles: RoleName[],
-  projectId: number
+  projectId: number,
+  pagination: PaginationInput,
+  filters: TaskListFilters = {}
 ) {
   const allowed = await canAccessProject(userId, userRoles, projectId);
   if (!allowed) {
     throw new AppError(403, "You do not have access to this project");
   }
 
-  const rows = await db
-    .select({
-      id: tasks.id,
-      projectId: tasks.projectId,
-      title: tasks.title,
-      description: tasks.description,
-      status: tasks.status,
-      priority: tasks.priority,
-      assignedTo: tasks.assignedTo,
-      assigneeName: users.name,
-      createdBy: tasks.createdBy,
-      dueDate: tasks.dueDate,
-      createdAt: tasks.createdAt,
-      updatedAt: tasks.updatedAt,
-    })
-    .from(tasks)
-    .leftJoin(users, eq(tasks.assignedTo, users.id))
-    .where(eq(tasks.projectId, projectId))
-    .orderBy(tasks.updatedAt);
+  const isTeamMemberOnly =
+    !isAdmin(userRoles) && !isProjectManager(userRoles);
 
-  return rows;
+  const baseWhere = isTeamMemberOnly
+    ? and(eq(tasks.projectId, projectId), eq(tasks.assignedTo, userId))
+    : eq(tasks.projectId, projectId);
+
+  return queryTasks(baseWhere, pagination, filters);
 }
 
-export async function listTasksForUser(userId: number, userRoles: RoleName[]) {
+export async function listTasksForUser(
+  userId: number,
+  userRoles: RoleName[],
+  pagination: PaginationInput,
+  filters: TaskListFilters = {}
+) {
   if (isAdmin(userRoles)) {
-    return db
-      .select({
-        id: tasks.id,
-        projectId: tasks.projectId,
-        title: tasks.title,
-        description: tasks.description,
-        status: tasks.status,
-        priority: tasks.priority,
-        assignedTo: tasks.assignedTo,
-        assigneeName: users.name,
-        createdBy: tasks.createdBy,
-        dueDate: tasks.dueDate,
-        createdAt: tasks.createdAt,
-        updatedAt: tasks.updatedAt,
-      })
-      .from(tasks)
-      .leftJoin(users, eq(tasks.assignedTo, users.id))
-      .orderBy(tasks.updatedAt);
+    return queryTasks(undefined, pagination, filters);
   }
 
   if (isProjectManager(userRoles)) {
@@ -68,67 +104,22 @@ export async function listTasksForUser(userId: number, userRoles: RoleName[]) {
 
     const projectIds = [...new Set(memberships.map((m) => m.projectId))];
     if (projectIds.length === 0) {
-      return [];
+      return queryTasks(eq(tasks.assignedTo, userId), pagination, filters);
     }
 
-    return db
-      .select({
-        id: tasks.id,
-        projectId: tasks.projectId,
-        title: tasks.title,
-        description: tasks.description,
-        status: tasks.status,
-        priority: tasks.priority,
-        assignedTo: tasks.assignedTo,
-        assigneeName: users.name,
-        createdBy: tasks.createdBy,
-        dueDate: tasks.dueDate,
-        createdAt: tasks.createdAt,
-        updatedAt: tasks.updatedAt,
-      })
-      .from(tasks)
-      .leftJoin(users, eq(tasks.assignedTo, users.id))
-      .where(or(inArray(tasks.projectId, projectIds), eq(tasks.assignedTo, userId)))
-      .orderBy(tasks.updatedAt);
+    return queryTasks(
+      or(inArray(tasks.projectId, projectIds), eq(tasks.assignedTo, userId)),
+      pagination,
+      filters
+    );
   }
 
-  return db
-    .select({
-      id: tasks.id,
-      projectId: tasks.projectId,
-      title: tasks.title,
-      description: tasks.description,
-      status: tasks.status,
-      priority: tasks.priority,
-      assignedTo: tasks.assignedTo,
-      assigneeName: users.name,
-      createdBy: tasks.createdBy,
-      dueDate: tasks.dueDate,
-      createdAt: tasks.createdAt,
-      updatedAt: tasks.updatedAt,
-    })
-    .from(tasks)
-    .leftJoin(users, eq(tasks.assignedTo, users.id))
-    .where(eq(tasks.assignedTo, userId))
-    .orderBy(tasks.updatedAt);
+  return queryTasks(eq(tasks.assignedTo, userId), pagination, filters);
 }
 
 export async function getTaskById(taskId: number) {
   const [task] = await db
-    .select({
-      id: tasks.id,
-      projectId: tasks.projectId,
-      title: tasks.title,
-      description: tasks.description,
-      status: tasks.status,
-      priority: tasks.priority,
-      assignedTo: tasks.assignedTo,
-      assigneeName: users.name,
-      createdBy: tasks.createdBy,
-      dueDate: tasks.dueDate,
-      createdAt: tasks.createdAt,
-      updatedAt: tasks.updatedAt,
-    })
+    .select(taskSelect)
     .from(tasks)
     .leftJoin(users, eq(tasks.assignedTo, users.id))
     .where(eq(tasks.id, taskId))
@@ -166,11 +157,7 @@ export async function canUpdateTaskStatus(
   userRoles: RoleName[],
   taskId: number
 ): Promise<boolean> {
-  const task = await getTaskById(taskId);
-  if (!task) return false;
-  if (isAdmin(userRoles)) return true;
-  if (await canManageProject(userId, userRoles, task.projectId)) return true;
-  return task.assignedTo === userId;
+  return canEditTask(userId, userRoles, taskId);
 }
 
 export async function requireTaskView(userId: number, userRoles: RoleName[], taskId: number) {

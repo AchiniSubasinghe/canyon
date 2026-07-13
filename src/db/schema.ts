@@ -66,6 +66,17 @@ export const projectMembers = mysqlTable(
   (table) => [primaryKey({ columns: [table.projectId, table.userId] })]
 );
 
+export const refreshTokens = mysqlTable("refresh_tokens", {
+  id: int("id").primaryKey().autoincrement(),
+  userId: int("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  jti: varchar("jti", { length: 36 }).notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  revokedAt: timestamp("revoked_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const tasks = mysqlTable("tasks", {
   id: int("id").primaryKey().autoincrement(),
   projectId: int("project_id")
