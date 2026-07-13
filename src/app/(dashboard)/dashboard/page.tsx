@@ -1,37 +1,31 @@
 "use client";
 
 import { CheckCircle2, FolderKanban, ListTodo } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback } from "react";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { TaskTable } from "@/components/tasks/task-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/contexts/auth-context";
-import { apiFetch } from "@/lib/api";
+import { apiFetchPaginated } from "@/lib/api";
+import { useFetch } from "@/lib/hooks/use-fetch";
 import type { Project, Task } from "@/lib/types";
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [projectData, taskData] = await Promise.all([
-          apiFetch<Project[]>("/projects"),
-          apiFetch<Task[]>("/tasks"),
-        ]);
-        setProjects(projectData);
-        setTasks(taskData);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
+  const fetchData = useCallback(async () => {
+    const [projectsRes, tasksRes] = await Promise.all([
+      apiFetchPaginated<Project>("/projects", { limit: 100 }),
+      apiFetchPaginated<Task>("/tasks", { limit: 8 }),
+    ]);
+    return { projects: projectsRes.data, tasks: tasksRes.data };
   }, []);
 
+  const { data, loading } = useFetch(fetchData, [], { toastOnError: true });
+
+  const projects = data?.projects ?? [];
+  const tasks = data?.tasks ?? [];
   const openTasks = tasks.filter((t) => t.status !== "done").length;
   const completedTasks = tasks.filter((t) => t.status === "done").length;
 
@@ -81,7 +75,7 @@ export default function DashboardPage() {
           <CardTitle>Recent tasks</CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? <Skeleton className="h-48 w-full" /> : <TaskTable tasks={tasks.slice(0, 8)} />}
+          {loading ? <Skeleton className="h-48 w-full" /> : <TaskTable tasks={tasks} />}
         </CardContent>
       </Card>
     </div>

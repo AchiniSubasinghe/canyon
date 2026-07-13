@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -7,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 import type { Task, TaskStatus } from "@/lib/types";
 import { formatStatus } from "@/lib/format";
 
@@ -20,16 +22,29 @@ export function TaskStatusSelect({
   task: Task;
   onUpdated: (task: Task) => void;
 }) {
+  const [saving, setSaving] = useState(false);
+
   async function handleChange(status: TaskStatus) {
-    const updated = await apiFetch<Task>(`/tasks/${task.id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
-    });
-    onUpdated(updated);
+    setSaving(true);
+    try {
+      const updated = await apiFetch<Task>(`/tasks/${task.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      onUpdated(updated);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to update status");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <Select value={task.status} onValueChange={(v) => handleChange(v as TaskStatus)}>
+    <Select
+      value={task.status}
+      disabled={saving}
+      onValueChange={(v) => handleChange(v as TaskStatus)}
+    >
       <SelectTrigger className="w-40">
         <SelectValue />
       </SelectTrigger>

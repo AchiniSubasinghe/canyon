@@ -3,6 +3,7 @@
 import {
   FolderKanban,
   LayoutDashboard,
+  ListTodo,
   LogOut,
   Shield,
   Users,
@@ -23,6 +24,7 @@ const navItems: {
 }[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: "all" },
   { href: "/projects", label: "Projects", icon: FolderKanban, roles: "all" },
+  { href: "/tasks", label: "Tasks", icon: ListTodo, roles: "all" },
   { href: "/admin/users", label: "Users", icon: Users, roles: "admin" },
 ];
 

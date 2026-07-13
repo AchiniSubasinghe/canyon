@@ -2,29 +2,48 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback } from "react";
+import { TaskDeleteButton } from "@/components/tasks/task-delete-button";
+import { TaskEditDialog } from "@/components/tasks/task-edit-dialog";
 import { TaskStatusSelect } from "@/components/tasks/task-status-select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/auth-context";
 import { formatPriority, formatStatus, priorityVariant, statusVariant } from "@/lib/format";
 import { apiFetch } from "@/lib/api";
-import type { Task } from "@/lib/types";
+import { useFetch } from "@/lib/hooks/use-fetch";
+import type { AssignableUser, Task } from "@/lib/types";
+
+interface TaskPageData {
+  task: Task;
+  assignees: AssignableUser[];
+}
 
 export default function TaskDetailPage() {
   const params = useParams<{ id: string }>();
   const taskId = Number(params.id);
-  const [task, setTask] = useState<Task | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { isAdmin, isProjectManager } = useAuth();
+  const canManage = isAdmin || isProjectManager;
 
-  useEffect(() => {
-    apiFetch<Task>(`/tasks/${taskId}`)
-      .then(setTask)
-      .finally(() => setLoading(false));
+  const fetchPage = useCallback(async (): Promise<TaskPageData> => {
+    const task = await apiFetch<Task>(`/tasks/${taskId}`);
+    const assignees = await apiFetch<AssignableUser[]>(
+      `/projects/${task.projectId}/assignable-users`
+    );
+    return { task, assignees };
   }, [taskId]);
 
+  const { data, loading, error, setData } = useFetch(fetchPage, [taskId], {
+    toastOnError: true,
+  });
+
   if (loading) return <Skeleton className="h-64 w-full" />;
-  if (!task) return <p className="text-muted-foreground">Task not found.</p>;
+  if (error || !data) {
+    return <p className="text-muted-foreground">{error ?? "Task not found."}</p>;
+  }
+
+  const { task, assignees } = data;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 animate-panel-in">
@@ -40,9 +59,26 @@ export default function TaskDetailPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <CardTitle>Details</CardTitle>
-          <TaskStatusSelect task={task} onUpdated={setTask} />
+          <div className="flex flex-wrap items-center gap-2">
+            <TaskEditDialog
+              task={task}
+              assignees={assignees}
+              onUpdated={(updated) =>
+                setData((prev) => (prev ? { ...prev, task: updated } : prev))
+              }
+            />
+            {canManage ? (
+              <TaskDeleteButton taskId={task.id} projectId={task.projectId} />
+            ) : null}
+            <TaskStatusSelect
+              task={task}
+              onUpdated={(updated) =>
+                setData((prev) => (prev ? { ...prev, task: updated } : prev))
+              }
+            />
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-muted-foreground">

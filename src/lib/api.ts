@@ -1,3 +1,5 @@
+import type { PaginatedResponse, PaginationParams } from "@canyon/shared";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1";
 
 let accessToken: string | null = null;
@@ -31,6 +33,18 @@ async function refreshAccessToken(): Promise<string | null> {
   const data = (await res.json()) as { accessToken: string };
   accessToken = data.accessToken;
   return data.accessToken;
+}
+
+function buildQuery(params?: Record<string, string | number | boolean | undefined>): string {
+  if (!params) return "";
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") {
+      search.set(key, String(value));
+    }
+  }
+  const qs = search.toString();
+  return qs ? `?${qs}` : "";
 }
 
 export async function apiFetch<T>(
@@ -71,4 +85,11 @@ export async function apiFetch<T>(
   }
 
   return res.json() as Promise<T>;
+}
+
+export async function apiFetchPaginated<T>(
+  path: string,
+  params?: PaginationParams & Record<string, string | number | boolean | undefined>
+): Promise<PaginatedResponse<T>> {
+  return apiFetch<PaginatedResponse<T>>(`${path}${buildQuery(params)}`);
 }

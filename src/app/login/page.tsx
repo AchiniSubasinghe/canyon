@@ -1,9 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -24,13 +23,19 @@ type FormData = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
   const [submitting, setSubmitting] = useState(false);
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { email: "", password: "" },
   });
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace("/dashboard");
+    }
+  }, [loading, user, router]);
 
   async function onSubmit(data: FormData) {
     setSubmitting(true);
@@ -45,6 +50,8 @@ export default function LoginPage() {
       setSubmitting(false);
     }
   }
+
+  if (loading) return null;
 
   return (
     <AppShell>
@@ -78,12 +85,6 @@ export default function LoginPage() {
                 {submitting ? "Signing in..." : "Sign in"}
               </Button>
             </form>
-
-            <p className="mt-4 text-center text-sm text-muted-foreground">
-              <Link href="/" className="hover:text-foreground hover:underline">
-                Back to home
-              </Link>
-            </p>
           </CardContent>
         </Card>
       </div>

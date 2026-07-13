@@ -2,8 +2,12 @@
 
 import { Plus, UserPlus } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { MemberList } from "@/components/projects/member-list";
+import { ProjectDeleteButton } from "@/components/projects/project-delete-button";
+import { ProjectSettingsDialog } from "@/components/projects/project-settings-dialog";
+import { TaskFormFields } from "@/components/tasks/task-form-fields";
 import { TaskTable } from "@/components/tasks/task-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +19,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -25,10 +28,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/auth-context";
-import { apiFetch, ApiError } from "@/lib/api";
-import type { Project, Task, User } from "@/lib/types";
+import { apiFetch, apiFetchPaginated, ApiError } from "@/lib/api";
+import { useFetch } from "@/lib/hooks/use-fetch";
+import type { AssignableUser, MemberRole, Project, Task, TaskPriority } from "@/lib/types";
+
+interface ProjectPageData {
+  project: Project;
+  tasks: Task[];
+  assignees: AssignableUser[];
+  candidateMembers: AssignableUser[];
+}
 
 export default function ProjectDetailPage() {
   const params = useParams<{ id: string }>();
@@ -36,47 +46,38 @@ export default function ProjectDetailPage() {
   const { isAdmin, isProjectManager } = useAuth();
   const canManage = isAdmin || isProjectManager;
 
-  const [project, setProject] = useState<Project | null>(null);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
+  const fetchPage = useCallback(async (): Promise<ProjectPageData> => {
+    const [project, taskData, assignees] = await Promise.all([
+      apiFetch<Project>(`/projects/${projectId}`),
+      apiFetchPaginated<Task>(`/tasks/project/${projectId}`, { limit: 100 }),
+      apiFetch<AssignableUser[]>(`/projects/${projectId}/assignable-users`),
+    ]);
+
+    const candidateMembers = canManage
+      ? await apiFetch<AssignableUser[]>(`/projects/${projectId}/candidate-members`)
+      : [];
+
+    return {
+      project,
+      tasks: taskData.data,
+      assignees,
+      candidateMembers,
+    };
+  }, [projectId, canManage]);
+
+  const { data, loading, error, reload, setData } = useFetch(fetchPage, [projectId, canManage], {
+    toastOnError: true,
+  });
 
   const [taskOpen, setTaskOpen] = useState(false);
   const [memberOpen, setMemberOpen] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
-  const [assigneeId, setAssigneeId] = useState<string>("");
-  const [memberUserId, setMemberUserId] = useState<string>("");
-
-  const load = useCallback(async () => {
-    const [projectData, taskData] = await Promise.all([
-      apiFetch<Project>(`/projects/${projectId}`),
-      apiFetch<Task[]>(`/tasks/project/${projectId}`),
-    ]);
-    setProject(projectData);
-    setTasks(taskData);
-  }, [projectId]);
-
-  useEffect(() => {
-    load().finally(() => setLoading(false));
-  }, [load]);
-
-  useEffect(() => {
-    if (canManage) {
-      if (isAdmin) {
-        apiFetch<User[]>("/users").then(setUsers).catch(() => {});
-      } else if (project?.members) {
-        setUsers(
-          project.members.map((m) => ({
-            id: m.userId,
-            email: m.email,
-            name: m.name,
-            roles: [],
-          }))
-        );
-      }
-    }
-  }, [canManage, isAdmin, project?.members]);
+  const [taskPriority, setTaskPriority] = useState<TaskPriority>("medium");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [assigneeId, setAssigneeId] = useState("none");
+  const [memberUserId, setMemberUserId] = useState("");
+  const [memberRole, setMemberRole] = useState<MemberRole>("member");
 
   async function handleCreateTask() {
     if (!taskTitle.trim()) return;
@@ -86,15 +87,19 @@ export default function ProjectDetailPage() {
         body: JSON.stringify({
           title: taskTitle,
           description: taskDescription,
-          assignedTo: assigneeId ? Number(assigneeId) : null,
+          priority: taskPriority,
+          dueDate: taskDueDate || null,
+          assignedTo: assigneeId === "none" ? null : Number(assigneeId),
         }),
       });
       toast.success("Task created");
       setTaskOpen(false);
       setTaskTitle("");
       setTaskDescription("");
-      setAssigneeId("");
-      await load();
+      setTaskPriority("medium");
+      setTaskDueDate("");
+      setAssigneeId("none");
+      await reload();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Failed to create task");
     }
@@ -105,12 +110,13 @@ export default function ProjectDetailPage() {
     try {
       await apiFetch(`/projects/${projectId}/members`, {
         method: "POST",
-        body: JSON.stringify({ userId: Number(memberUserId), memberRole: "member" }),
+        body: JSON.stringify({ userId: Number(memberUserId), memberRole }),
       });
       toast.success("Member assigned");
       setMemberOpen(false);
       setMemberUserId("");
-      await load();
+      setMemberRole("member");
+      await reload();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Failed to assign member");
     }
@@ -120,9 +126,11 @@ export default function ProjectDetailPage() {
     return <Skeleton className="h-96 w-full" />;
   }
 
-  if (!project) {
-    return <p className="text-muted-foreground">Project not found.</p>;
+  if (error || !data) {
+    return <p className="text-muted-foreground">{error ?? "Project not found."}</p>;
   }
+
+  const { project, tasks, assignees, candidateMembers } = data;
 
   return (
     <div className="space-y-8 animate-panel-in">
@@ -138,7 +146,15 @@ export default function ProjectDetailPage() {
           </Badge>
         </div>
         {canManage ? (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <ProjectSettingsDialog
+              project={project}
+              onUpdated={(updated) =>
+                setData((prev) => (prev ? { ...prev, project: { ...prev.project, ...updated } } : prev))
+              }
+            />
+            {isAdmin ? <ProjectDeleteButton projectId={projectId} /> : null}
+
             <Dialog open={memberOpen} onOpenChange={setMemberOpen}>
               <DialogTrigger asChild>
                 <Button variant="secondary">
@@ -158,11 +174,23 @@ export default function ProjectDetailPage() {
                         <SelectValue placeholder="Select user" />
                       </SelectTrigger>
                       <SelectContent>
-                        {users.map((user) => (
+                        {candidateMembers.map((user) => (
                           <SelectItem key={user.id} value={String(user.id)}>
                             {user.name} ({user.email})
                           </SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Role</Label>
+                    <Select value={memberRole} onValueChange={(v) => setMemberRole(v as MemberRole)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="member">Member</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -182,42 +210,20 @@ export default function ProjectDetailPage() {
                 <DialogHeader>
                   <DialogTitle>Create task</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="taskTitle">Title</Label>
-                    <Input
-                      id="taskTitle"
-                      value={taskTitle}
-                      onChange={(e) => setTaskTitle(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="taskDescription">Description</Label>
-                    <Textarea
-                      id="taskDescription"
-                      value={taskDescription}
-                      onChange={(e) => setTaskDescription(e.target.value)}
-                    />
-                  </div>
-                  {users.length > 0 ? (
-                    <div className="space-y-2">
-                      <Label>Assignee</Label>
-                      <Select value={assigneeId} onValueChange={setAssigneeId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Optional" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {users.map((user) => (
-                            <SelectItem key={user.id} value={String(user.id)}>
-                              {user.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : null}
-                  <Button onClick={handleCreateTask}>Create task</Button>
-                </div>
+                <TaskFormFields
+                  title={taskTitle}
+                  description={taskDescription}
+                  priority={taskPriority}
+                  dueDate={taskDueDate}
+                  assigneeId={assigneeId}
+                  assignees={assignees}
+                  onTitleChange={setTaskTitle}
+                  onDescriptionChange={setTaskDescription}
+                  onPriorityChange={setTaskPriority}
+                  onDueDateChange={setTaskDueDate}
+                  onAssigneeChange={setAssigneeId}
+                />
+                <Button onClick={handleCreateTask}>Create task</Button>
               </DialogContent>
             </Dialog>
           </div>
@@ -229,23 +235,13 @@ export default function ProjectDetailPage() {
           <CardHeader>
             <CardTitle>Members</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {(project.members ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No members assigned yet.</p>
-            ) : (
-              project.members?.map((member) => (
-                <div
-                  key={member.userId}
-                  className="flex items-center justify-between rounded-sm border border-border bg-secondary px-3 py-2"
-                >
-                  <div>
-                    <p className="text-sm font-medium">{member.name}</p>
-                    <p className="font-mono text-xs text-muted-foreground">{member.email}</p>
-                  </div>
-                  <Badge variant="secondary">{member.memberRole}</Badge>
-                </div>
-              ))
-            )}
+          <CardContent>
+            <MemberList
+              projectId={projectId}
+              members={project.members ?? []}
+              canManage={canManage}
+              onUpdated={reload}
+            />
           </CardContent>
         </Card>
 
