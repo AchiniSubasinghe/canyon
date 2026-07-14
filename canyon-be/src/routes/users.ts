@@ -1,21 +1,16 @@
-import { hashPassword } from "../lib/password.js";
-import { eq, inArray } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
-import { db } from "../db/index.js";
-import { roles, userRoles, users } from "../db/schema.js";
 import { parsePagination } from "../lib/pagination.js";
 import { ROLE_NAMES } from "../lib/roles.js";
 import { requireAuth } from "../middleware/auth.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { requireRoles } from "../middleware/rbac.js";
-import { revokeAllUserTokens } from "../services/tokens.js";
 import {
-  formatUser,
-  getUserByEmail,
-  getUserById,
-  getUserRoles,
-  listUsers,
+  createUser,
+  deactivateUser,
+  getUserForAdmin,
+  listUsersForAdmin,
+  updateUser,
 } from "../services/users.js";
 
 const router = Router();
@@ -51,7 +46,7 @@ router.get("/", async (req, res, next) => {
   try {
     const query = listUsersQuerySchema.parse(req.query);
     const pagination = parsePagination(query);
-    const { rows, total } = await listUsers(pagination, {
+    const { rows, total } = await listUsersForAdmin(req.user!.roles, pagination, {
       search: query.search,
       isActive: query.isActive,
     });
@@ -68,12 +63,8 @@ router.get("/:id", async (req, res, next) => {
       throw new AppError(400, "Invalid user id");
     }
 
-    const user = await getUserById(userId);
-    if (!user) {
-      throw new AppError(404, "User not found");
-    }
-
-    res.json(await formatUser(user));
+    const user = await getUserForAdmin(req.user!.roles, userId);
+    res.json(user);
   } catch (err) {
     next(err);
   }
@@ -82,40 +73,8 @@ router.get("/:id", async (req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const body = createUserSchema.parse(req.body);
-    const existing = await getUserByEmail(body.email);
-    if (existing) {
-      throw new AppError(409, "Email already in use");
-    }
-
-    const passwordHash = await hashPassword(body.password);
-    const [result] = await db.insert(users).values({
-      email: body.email,
-      passwordHash,
-      name: body.name,
-    });
-
-    const roleRows = await db
-      .select()
-      .from(roles)
-      .where(inArray(roles.name, body.roles));
-
-    if (roleRows.length !== body.roles.length) {
-      throw new AppError(400, "One or more roles are invalid");
-    }
-
-    await db.insert(userRoles).values(
-      roleRows.map((role) => ({
-        userId: result.insertId,
-        roleId: role.id,
-      }))
-    );
-
-    res.status(201).json({
-      id: result.insertId,
-      email: body.email,
-      name: body.name,
-      roles: body.roles,
-    });
+    const user = await createUser(req.user!.roles, body);
+    res.status(201).json(user);
   } catch (err) {
     next(err);
   }
@@ -129,61 +88,8 @@ router.patch("/:id", async (req, res, next) => {
     }
 
     const body = updateUserSchema.parse(req.body);
-    const user = await getUserById(userId);
-    if (!user) {
-      throw new AppError(404, "User not found");
-    }
-
-    if (body.email && body.email !== user.email) {
-      const existing = await getUserByEmail(body.email);
-      if (existing && existing.id !== userId) {
-        throw new AppError(409, "Email already in use");
-      }
-    }
-
-    const updates: Partial<typeof users.$inferInsert> = {};
-    if (body.email) updates.email = body.email;
-    if (body.name) updates.name = body.name;
-    if (body.isActive !== undefined) updates.isActive = body.isActive;
-    if (body.password) updates.passwordHash = await hashPassword(body.password);
-
-    if (Object.keys(updates).length > 0) {
-      await db.update(users).set(updates).where(eq(users.id, userId));
-    }
-
-    if (body.password) {
-      await revokeAllUserTokens(userId);
-    }
-
-    if (body.roles) {
-      const roleRows = await db
-        .select()
-        .from(roles)
-        .where(inArray(roles.name, body.roles));
-
-      if (roleRows.length !== body.roles.length) {
-        throw new AppError(400, "One or more roles are invalid");
-      }
-
-      await db.delete(userRoles).where(eq(userRoles.userId, userId));
-      await db.insert(userRoles).values(
-        roleRows.map((role) => ({
-          userId,
-          roleId: role.id,
-        }))
-      );
-    }
-
-    const updated = await getUserById(userId);
-    const roleNames = body.roles ?? (await getUserRoles(userId));
-
-    res.json({
-      id: updated!.id,
-      email: updated!.email,
-      name: updated!.name,
-      isActive: updated!.isActive,
-      roles: roleNames,
-    });
+    const user = await updateUser(req.user!.roles, userId, body);
+    res.json(user);
   } catch (err) {
     next(err);
   }
@@ -196,18 +102,8 @@ router.delete("/:id", async (req, res, next) => {
       throw new AppError(400, "Invalid user id");
     }
 
-    if (userId === req.user!.id) {
-      throw new AppError(400, "You cannot deactivate your own account");
-    }
-
-    const user = await getUserById(userId);
-    if (!user) {
-      throw new AppError(404, "User not found");
-    }
-
-    await db.update(users).set({ isActive: false }).where(eq(users.id, userId));
-    await revokeAllUserTokens(userId);
-    res.json({ message: "User deactivated" });
+    const result = await deactivateUser(req.user!.id, req.user!.roles, userId);
+    res.json(result);
   } catch (err) {
     next(err);
   }

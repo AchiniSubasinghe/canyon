@@ -4,7 +4,12 @@ import { projectMembers, tasks, users } from "../db/schema.js";
 import type { PaginationInput } from "../lib/pagination.js";
 import { isAdmin, isProjectManager, type RoleName } from "../lib/roles.js";
 import { AppError } from "../middleware/errorHandler.js";
-import { canAccessProject, canManageProject } from "./projects.js";
+import {
+  canAccessProject,
+  canManageProject,
+  requireProjectManage,
+  requireProjectMember,
+} from "./projects.js";
 
 export interface TaskListFilters {
   status?: "todo" | "in_progress" | "review" | "done";
@@ -169,3 +174,119 @@ export async function requireTaskEdit(userId: number, userRoles: RoleName[], tas
   const allowed = await canEditTask(userId, userRoles, taskId);
   if (!allowed) throw new AppError(403, "You cannot edit this task");
 }
+
+export type TaskStatus = "todo" | "in_progress" | "review" | "done";
+export type TaskPriority = "low" | "medium" | "high" | "urgent";
+
+function parseDueDate(value: string | null | undefined): Date | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new AppError(400, "Invalid due date");
+  }
+  return date;
+}
+
+export async function createTask(
+  userId: number,
+  userRoles: RoleName[],
+  projectId: number,
+  input: {
+    title: string;
+    description?: string;
+    status?: TaskStatus;
+    priority?: TaskPriority;
+    assignedTo?: number | null;
+    dueDate?: string | null;
+  }
+) {
+  const canCreate = isAdmin(userRoles) || isProjectManager(userRoles);
+  if (!canCreate) {
+    throw new AppError(403, "You cannot create tasks");
+  }
+
+  await requireProjectManage(userId, userRoles, projectId);
+
+  if (input.assignedTo) {
+    await requireProjectMember(projectId, input.assignedTo);
+  }
+
+  const [result] = await db.insert(tasks).values({
+    projectId,
+    title: input.title,
+    description: input.description,
+    status: input.status ?? "todo",
+    priority: input.priority ?? "medium",
+    assignedTo: input.assignedTo ?? null,
+    createdBy: userId,
+    dueDate: parseDueDate(input.dueDate) ?? null,
+  });
+
+  return getTaskById(result.insertId);
+}
+
+export async function updateTask(
+  userId: number,
+  userRoles: RoleName[],
+  taskId: number,
+  input: {
+    title?: string;
+    description?: string | null;
+    status?: TaskStatus;
+    priority?: TaskPriority;
+    assignedTo?: number | null;
+    dueDate?: string | null;
+  }
+) {
+  await requireTaskEdit(userId, userRoles, taskId);
+
+  const existing = await getTaskById(taskId);
+  if (!existing) throw new AppError(404, "Task not found");
+
+  if (input.assignedTo) {
+    await requireProjectMember(existing.projectId, input.assignedTo);
+  }
+
+  const updates: {
+    title?: string;
+    description?: string | null;
+    status?: TaskStatus;
+    priority?: TaskPriority;
+    assignedTo?: number | null;
+    dueDate?: Date | null;
+  } = {};
+
+  if (input.title !== undefined) updates.title = input.title;
+  if (input.description !== undefined) updates.description = input.description;
+  if (input.status !== undefined) updates.status = input.status;
+  if (input.priority !== undefined) updates.priority = input.priority;
+  if (input.assignedTo !== undefined) updates.assignedTo = input.assignedTo;
+  if (input.dueDate !== undefined) updates.dueDate = parseDueDate(input.dueDate) ?? null;
+
+  await db.update(tasks).set(updates).where(eq(tasks.id, taskId));
+  return getTaskById(taskId);
+}
+
+export async function updateTaskStatus(
+  userId: number,
+  userRoles: RoleName[],
+  taskId: number,
+  status: TaskStatus
+) {
+  const allowed = await canUpdateTaskStatus(userId, userRoles, taskId);
+  if (!allowed) throw new AppError(403, "You cannot update this task status");
+
+  await db.update(tasks).set({ status }).where(eq(tasks.id, taskId));
+  return getTaskById(taskId);
+}
+
+export async function deleteTask(userId: number, userRoles: RoleName[], taskId: number) {
+  const task = await getTaskById(taskId);
+  if (!task) throw new AppError(404, "Task not found");
+
+  await requireProjectManage(userId, userRoles, task.projectId);
+  await db.delete(tasks).where(eq(tasks.id, taskId));
+  return { message: "Task deleted" };
+}
+

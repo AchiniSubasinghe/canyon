@@ -53,6 +53,6 @@ bun run ci          # Full CI pipeline locally
 
 A role-aware chat interface (inspired by ChatGPT) lives at `/agent`.
 
-It knows the exact capabilities of the current user’s role and will only discuss or suggest actions the role can perform. It also receives a live snapshot of the user’s visible projects and tasks.
+The agent uses **tool calling** against the same project/task/user services as the UI. Every tool runs under the signed-in user with **server-side RBAC** (not prompt-only). It can list and mutate projects, tasks, members, and (for admins) users—within that role’s permissions.
 
 **Setup**: add `DEEPSEEK_API_KEY=sk-...` to `canyon-be/.env` (see `.env.example`).

@@ -1,20 +1,17 @@
-import { eq } from "drizzle-orm";
 import { Router } from "express";
 import { z } from "zod";
-import { db } from "../db/index.js";
-import { tasks } from "../db/schema.js";
-import { isAdmin, isProjectManager } from "../lib/roles.js";
 import { parsePagination } from "../lib/pagination.js";
 import { requireAuth } from "../middleware/auth.js";
 import { AppError } from "../middleware/errorHandler.js";
-import { requireProjectManage, requireProjectMember } from "../services/projects.js";
 import {
-  canUpdateTaskStatus,
+  createTask,
+  deleteTask,
   getTaskById,
   listTasksForProject,
   listTasksForUser,
-  requireTaskEdit,
   requireTaskView,
+  updateTask,
+  updateTaskStatus,
 } from "../services/tasks.js";
 
 const router = Router();
@@ -41,16 +38,6 @@ const listTasksQuerySchema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]).optional(),
   projectId: z.coerce.number().int().positive().optional(),
 });
-
-function parseDueDate(value: string | null | undefined): Date | null | undefined {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    throw new AppError(400, "Invalid due date");
-  }
-  return date;
-}
 
 router.use(requireAuth);
 
@@ -94,33 +81,8 @@ router.post("/project/:projectId", async (req, res, next) => {
     const projectId = Number(req.params.projectId);
     if (Number.isNaN(projectId)) throw new AppError(400, "Invalid project id");
 
-    const canCreate =
-      isAdmin(req.user!.roles) ||
-      isProjectManager(req.user!.roles);
-
-    if (!canCreate) {
-      throw new AppError(403, "You cannot create tasks");
-    }
-
-    await requireProjectManage(req.user!.id, req.user!.roles, projectId);
     const body = createTaskSchema.parse(req.body);
-
-    if (body.assignedTo) {
-      await requireProjectMember(projectId, body.assignedTo);
-    }
-
-    const [result] = await db.insert(tasks).values({
-      projectId,
-      title: body.title,
-      description: body.description,
-      status: body.status ?? "todo",
-      priority: body.priority ?? "medium",
-      assignedTo: body.assignedTo ?? null,
-      createdBy: req.user!.id,
-      dueDate: parseDueDate(body.dueDate) ?? null,
-    });
-
-    const task = await getTaskById(result.insertId);
+    const task = await createTask(req.user!.id, req.user!.roles, projectId, body);
     res.status(201).json(task);
   } catch (err) {
     next(err);
@@ -145,34 +107,8 @@ router.patch("/:id", async (req, res, next) => {
     const taskId = Number(req.params.id);
     if (Number.isNaN(taskId)) throw new AppError(400, "Invalid task id");
 
-    await requireTaskEdit(req.user!.id, req.user!.roles, taskId);
     const body = updateTaskSchema.parse(req.body);
-
-    const existing = await getTaskById(taskId);
-    if (!existing) throw new AppError(404, "Task not found");
-
-    if (body.assignedTo) {
-      await requireProjectMember(existing.projectId, body.assignedTo);
-    }
-
-    const updates: {
-      title?: string;
-      description?: string | null;
-      status?: "todo" | "in_progress" | "review" | "done";
-      priority?: "low" | "medium" | "high" | "urgent";
-      assignedTo?: number | null;
-      dueDate?: Date | null;
-    } = {};
-
-    if (body.title !== undefined) updates.title = body.title;
-    if (body.description !== undefined) updates.description = body.description;
-    if (body.status !== undefined) updates.status = body.status;
-    if (body.priority !== undefined) updates.priority = body.priority;
-    if (body.assignedTo !== undefined) updates.assignedTo = body.assignedTo;
-    if (body.dueDate !== undefined) updates.dueDate = parseDueDate(body.dueDate) ?? null;
-
-    await db.update(tasks).set(updates).where(eq(tasks.id, taskId));
-    const task = await getTaskById(taskId);
+    const task = await updateTask(req.user!.id, req.user!.roles, taskId, body);
     res.json(task);
   } catch (err) {
     next(err);
@@ -184,12 +120,8 @@ router.patch("/:id/status", async (req, res, next) => {
     const taskId = Number(req.params.id);
     if (Number.isNaN(taskId)) throw new AppError(400, "Invalid task id");
 
-    const allowed = await canUpdateTaskStatus(req.user!.id, req.user!.roles, taskId);
-    if (!allowed) throw new AppError(403, "You cannot update this task status");
-
     const { status } = statusSchema.parse(req.body);
-    await db.update(tasks).set({ status }).where(eq(tasks.id, taskId));
-    const task = await getTaskById(taskId);
+    const task = await updateTaskStatus(req.user!.id, req.user!.roles, taskId, status);
     res.json(task);
   } catch (err) {
     next(err);
@@ -201,12 +133,8 @@ router.delete("/:id", async (req, res, next) => {
     const taskId = Number(req.params.id);
     if (Number.isNaN(taskId)) throw new AppError(400, "Invalid task id");
 
-    const task = await getTaskById(taskId);
-    if (!task) throw new AppError(404, "Task not found");
-
-    await requireProjectManage(req.user!.id, req.user!.roles, task.projectId);
-    await db.delete(tasks).where(eq(tasks.id, taskId));
-    res.json({ message: "Task deleted" });
+    const result = await deleteTask(req.user!.id, req.user!.roles, taskId);
+    res.json(result);
   } catch (err) {
     next(err);
   }

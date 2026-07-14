@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Plus } from "lucide-react";
+import { ArrowUp, Check, Loader2, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CanyonMark } from "@/components/brand/canyon-mark";
 import { MarkdownContent } from "@/components/agent/markdown-content";
@@ -13,6 +13,14 @@ type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  tools?: ToolActivity[];
+};
+
+type ToolActivity = {
+  id: string;
+  name: string;
+  status: "running" | "ok" | "error";
+  summary?: string;
 };
 
 type Suggestion = {
@@ -25,17 +33,26 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1
 const ROLE_SUGGESTIONS: Record<RoleName, Suggestion[]> = {
   administrator: [
     { label: "Show all active projects", prompt: "Show me all active projects right now." },
-    { label: "How do roles work?", prompt: "Explain what each role can and cannot do in Canyon." },
-    { label: "Who created the most tasks?", prompt: "Who has created the largest number of tasks?" },
+    { label: "List users", prompt: "List the users in the system." },
+    {
+      label: "Create a planning project",
+      prompt: "Create a project named Agent Demo with status planning.",
+    },
   ],
   project_manager: [
     { label: "List projects I manage", prompt: "List the projects I currently manage." },
-    { label: "What tasks need attention?", prompt: "Which of my tasks or project tasks are not done yet?" },
-    { label: "Can I assign a new member?", prompt: "How do I add someone to a project I manage?" },
+    {
+      label: "Create a task",
+      prompt: "On my first project, create a task titled Follow up with stakeholders.",
+    },
+    { label: "What needs attention?", prompt: "Which of my tasks or project tasks are not done yet?" },
   ],
   team_member: [
     { label: "Show my open tasks", prompt: "Show me all my open tasks." },
-    { label: "How do I mark a task done?", prompt: "How can I update the status of a task assigned to me?" },
+    {
+      label: "Mark a task in progress",
+      prompt: "Find my first open task and mark it in_progress if I am allowed.",
+    },
     { label: "Which project am I on?", prompt: "Which projects am I currently a member of?" },
   ],
 };
@@ -44,6 +61,10 @@ function getRoleLabel(roles: RoleName[]): RoleName {
   if (roles.includes("administrator")) return "administrator";
   if (roles.includes("project_manager")) return "project_manager";
   return "team_member";
+}
+
+function formatToolName(name: string) {
+  return name.replace(/_/g, " ");
 }
 
 export default function AgentPage() {
@@ -55,6 +76,7 @@ export default function AgentPage() {
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [liveTools, setLiveTools] = useState<ToolActivity[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -69,7 +91,7 @@ export default function AgentPage() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, scrollToBottom]);
+  }, [messages, liveTools, scrollToBottom]);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -79,20 +101,24 @@ export default function AgentPage() {
     el.style.height = Math.min(el.scrollHeight, max) + "px";
   }, [input]);
 
-  function addMessage(role: "user" | "assistant", content: string) {
+  function addMessage(role: "user" | "assistant", content: string, tools?: ToolActivity[]) {
     messageIdRef.current += 1;
     const id = `msg-${messageIdRef.current}`;
-    const msg: Message = { id, role, content };
+    const msg: Message = { id, role, content, tools };
     setMessages((prev) => [...prev, msg]);
-    return msg.id;
+    return id;
   }
 
-  function updateLastAssistant(content: string) {
+  function updateLastAssistant(content: string, tools?: ToolActivity[]) {
     setMessages((prev) => {
       const copy = [...prev];
       for (let i = copy.length - 1; i >= 0; i--) {
         if (copy[i].role === "assistant") {
-          copy[i] = { ...copy[i], content };
+          copy[i] = {
+            ...copy[i],
+            content,
+            tools: tools ?? copy[i].tools,
+          };
           break;
         }
       }
@@ -110,6 +136,7 @@ export default function AgentPage() {
 
     const assistantId = addMessage("assistant", "");
     setIsStreaming(true);
+    setLiveTools([]);
 
     const historyForApi = [
       ...messages,
@@ -118,6 +145,9 @@ export default function AgentPage() {
 
     const controller = new AbortController();
     abortRef.current = controller;
+
+    const toolsAcc: ToolActivity[] = [];
+    let accumulated = "";
 
     try {
       const token = getAccessToken();
@@ -139,44 +169,88 @@ export default function AgentPage() {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let accumulated = "";
+      let buffer = "";
+      let eventName = "message";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") continue;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n");
+        buffer = parts.pop() ?? "";
 
-            try {
-              const json = JSON.parse(data);
-              const delta = json.choices?.[0]?.delta?.content;
-              if (delta) {
-                accumulated += delta;
-                updateLastAssistant(accumulated);
-              }
-            } catch {
-              // ignore partial json
-            }
+        for (const line of parts) {
+          if (line.startsWith("event: ")) {
+            eventName = line.slice(7).trim();
+            continue;
           }
+          if (!line.startsWith("data: ")) continue;
+
+          const data = line.slice(6).trim();
+          if (!data) continue;
+
+          let json: Record<string, unknown>;
+          try {
+            json = JSON.parse(data) as Record<string, unknown>;
+          } catch {
+            continue;
+          }
+
+          if (eventName === "tool_call") {
+            const activity: ToolActivity = {
+              id: String(json.id ?? crypto.randomUUID()),
+              name: String(json.name ?? "tool"),
+              status: "running",
+            };
+            toolsAcc.push(activity);
+            setLiveTools([...toolsAcc]);
+            updateLastAssistant(accumulated, [...toolsAcc]);
+          } else if (eventName === "tool_result") {
+            const id = String(json.id ?? "");
+            const idx = toolsAcc.findIndex((t) => t.id === id);
+            const next: ToolActivity = {
+              id: id || crypto.randomUUID(),
+              name: String(json.name ?? "tool"),
+              status: json.ok ? "ok" : "error",
+              summary: typeof json.summary === "string" ? json.summary : undefined,
+            };
+            if (idx >= 0) toolsAcc[idx] = next;
+            else toolsAcc.push(next);
+            setLiveTools([...toolsAcc]);
+            updateLastAssistant(accumulated, [...toolsAcc]);
+          } else if (eventName === "content") {
+            const delta = typeof json.delta === "string" ? json.delta : "";
+            if (delta) {
+              accumulated += delta;
+              updateLastAssistant(accumulated, [...toolsAcc]);
+            }
+          } else if (eventName === "error") {
+            const msg =
+              typeof json.message === "string" ? json.message : "Agent error";
+            setError(msg);
+          }
+
+          eventName = "message";
         }
       }
 
-      if (!accumulated.trim()) {
-        updateLastAssistant("…");
+      if (!accumulated.trim() && toolsAcc.length === 0) {
+        updateLastAssistant("…", toolsAcc);
+      } else {
+        updateLastAssistant(accumulated || "Done.", toolsAcc);
       }
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") return;
       const msg =
         e instanceof Error ? e.message : "Something went wrong talking to the agent.";
       setError(msg);
-      setMessages((prev) => prev.filter((m) => !(m.id === assistantId && m.content === "")));
+      setMessages((prev) =>
+        prev.filter((m) => !(m.id === assistantId && !m.content && !m.tools?.length))
+      );
     } finally {
       setIsStreaming(false);
+      setLiveTools([]);
       abortRef.current = null;
     }
   }
@@ -200,10 +274,11 @@ export default function AgentPage() {
     setMessages([]);
     setInput("");
     setError(null);
+    setLiveTools([]);
     if (abortRef.current) abortRef.current.abort();
   }
 
-  const boundaryText = `This agent only knows and suggests actions available to you as ${currentRole.replace(/_/g, " ")}.`;
+  const boundaryText = `This agent can act for you as ${currentRole.replace(/_/g, " ")} — RBAC is enforced on every action.`;
 
   return (
     <div className="-mx-4 -mt-14 flex h-[calc(100dvh)] flex-col pt-14 md:-mx-8 md:-mt-8 md:h-dvh md:pt-0">
@@ -212,7 +287,9 @@ export default function AgentPage() {
           <CanyonMark size="sm" />
           <div>
             <div className="text-sm font-semibold tracking-tight">Agent</div>
-            <div className="font-mono text-[11px] text-muted-foreground">Role-aware assistant</div>
+            <div className="font-mono text-[11px] text-muted-foreground">
+              Role-aware assistant with tools
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -222,33 +299,6 @@ export default function AgentPage() {
           {messages.length > 0 && (
             <Button variant="ghost" size="sm" onClick={startNewChat}>
               New chat
-            </Button>
-          )}
-
-          {process.env.NODE_ENV === "development" && messages.length === 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const sample = `As a **project_manager** you can:
-
-- Create new projects
-- Manage members on projects where you are a *manager*
-- Create, edit, and delete tasks in those projects
-
-Example inline code: update the status with \`PATCH /tasks/:id/status\`.
-
-> Remember: only administrators can delete entire projects.
-
-\`\`\`ts
-// You cannot do this as a team_member
-await api.post('/projects', { name: 'New one' })
-\`\`\`
-`;
-                setMessages([{ id: "dev-sample", role: "assistant", content: sample.trim() }]);
-              }}
-            >
-              Load sample markdown
             </Button>
           )}
         </div>
@@ -263,8 +313,8 @@ await api.post('/projects', { name: 'New one' })
                 What are you working on?
               </h1>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                I know what your role can and cannot do. Ask about projects, tasks, or how Canyon
-                works.
+                I can look up and change projects, tasks, and (if you&apos;re an admin) users —
+                only within your role.
               </p>
 
               <div className="mt-8 grid w-full max-w-xl gap-2">
@@ -294,17 +344,45 @@ await api.post('/projects', { name: 'New one' })
                       : "agent-bubble-assistant bg-muted text-foreground"
                   }`}
                 >
+                  {m.role === "assistant" && m.tools && m.tools.length > 0 && (
+                    <div className="mb-2 flex flex-col gap-1.5">
+                      {m.tools.map((t) => (
+                        <div
+                          key={t.id}
+                          className="flex items-start gap-2 rounded-sm border border-border/60 bg-background/50 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground"
+                        >
+                          {t.status === "running" && (
+                            <Loader2 className="mt-0.5 h-3 w-3 shrink-0 animate-spin" />
+                          )}
+                          {t.status === "ok" && (
+                            <Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
+                          )}
+                          {t.status === "error" && (
+                            <X className="mt-0.5 h-3 w-3 shrink-0 text-destructive" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-medium text-foreground/80">
+                              {formatToolName(t.name)}
+                            </div>
+                            {t.summary && (
+                              <div className="truncate text-muted-foreground/80">{t.summary}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {m.role === "assistant" ? (
-                    <MarkdownContent content={m.content || (isStreaming ? "…" : "")} />
+                    <MarkdownContent content={m.content || (isStreaming ? "" : "")} />
                   ) : (
-                    m.content || (isStreaming ? "…" : "")
+                    m.content
                   )}
                 </div>
               </div>
             ))
           )}
 
-          {isStreaming && (
+          {isStreaming && liveTools.length === 0 && (
             <div className="flex justify-start">
               <div className="agent-bubble-assistant max-w-[80%] bg-muted px-4 py-3 text-sm text-muted-foreground">
                 Canyon Agent is thinking…

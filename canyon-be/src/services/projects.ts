@@ -218,3 +218,146 @@ export async function requireProjectMember(projectId: number, assigneeId: number
     throw new AppError(400, "Assignee must be a project member");
   }
 }
+
+export type ProjectStatus = "planning" | "active" | "on_hold" | "completed";
+export type MemberRole = "manager" | "member";
+
+export async function createProject(
+  userId: number,
+  userRoles: RoleName[],
+  input: { name: string; description?: string; status?: ProjectStatus }
+) {
+  if (!isAdmin(userRoles) && !isProjectManager(userRoles)) {
+    throw new AppError(403, "You cannot create projects");
+  }
+
+  const [result] = await db.insert(projects).values({
+    name: input.name,
+    description: input.description,
+    status: input.status ?? "planning",
+    createdBy: userId,
+  });
+
+  await db.insert(projectMembers).values({
+    projectId: result.insertId,
+    userId,
+    memberRole: "manager",
+  });
+
+  return getProjectById(result.insertId);
+}
+
+export async function updateProject(
+  userId: number,
+  userRoles: RoleName[],
+  projectId: number,
+  input: { name?: string; description?: string; status?: ProjectStatus }
+) {
+  await requireProjectManage(userId, userRoles, projectId);
+  await db.update(projects).set(input).where(eq(projects.id, projectId));
+  return getProjectById(projectId);
+}
+
+export async function deleteProject(userId: number, userRoles: RoleName[], projectId: number) {
+  if (!isAdmin(userRoles)) {
+    throw new AppError(403, "Only administrators can delete projects");
+  }
+  await db.delete(projects).where(eq(projects.id, projectId));
+  return { message: "Project deleted" };
+}
+
+export async function addProjectMember(
+  userId: number,
+  userRoles: RoleName[],
+  projectId: number,
+  input: { userId: number; memberRole?: MemberRole }
+) {
+  await requireProjectManage(userId, userRoles, projectId);
+
+  const user = await getUserById(input.userId);
+  if (!user || !user.isActive) {
+    throw new AppError(404, "User not found");
+  }
+
+  const [existing] = await db
+    .select()
+    .from(projectMembers)
+    .where(
+      and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, input.userId))
+    )
+    .limit(1);
+
+  if (existing) {
+    throw new AppError(409, "User is already a project member");
+  }
+
+  await db.insert(projectMembers).values({
+    projectId,
+    userId: input.userId,
+    memberRole: input.memberRole ?? "member",
+  });
+
+  return getProjectMembers(projectId);
+}
+
+export async function updateProjectMember(
+  actorId: number,
+  userRoles: RoleName[],
+  projectId: number,
+  memberUserId: number,
+  memberRole: MemberRole
+) {
+  await requireProjectManage(actorId, userRoles, projectId);
+
+  const [existing] = await db
+    .select()
+    .from(projectMembers)
+    .where(
+      and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, memberUserId))
+    )
+    .limit(1);
+
+  if (!existing) {
+    throw new AppError(404, "Member not found");
+  }
+
+  await db
+    .update(projectMembers)
+    .set({ memberRole })
+    .where(
+      and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, memberUserId))
+    );
+
+  return getProjectMembers(projectId);
+}
+
+export async function removeProjectMember(
+  actorId: number,
+  userRoles: RoleName[],
+  projectId: number,
+  memberUserId: number
+) {
+  await requireProjectManage(actorId, userRoles, projectId);
+
+  await db
+    .delete(projectMembers)
+    .where(
+      and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, memberUserId))
+    );
+
+  return { message: "Member removed" };
+}
+
+export async function getProjectDetail(
+  userId: number,
+  userRoles: RoleName[],
+  projectId: number
+) {
+  await requireProjectAccess(userId, userRoles, projectId);
+  const project = await getProjectById(projectId);
+  if (!project) throw new AppError(404, "Project not found");
+
+  const members = await getProjectMembers(projectId);
+  const stats = await getProjectStats(projectId);
+  return { ...project, members, ...stats };
+}
