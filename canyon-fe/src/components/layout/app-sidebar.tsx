@@ -7,6 +7,8 @@ import {
   ListTodo,
   LogOut,
   Menu,
+  Moon,
+  Sun,
   Users,
   X,
 } from "lucide-react";
@@ -16,6 +18,7 @@ import { useEffect, useState } from "react";
 import { CanyonMark } from "@/components/brand/canyon-mark";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
+import { useTheme } from "@/contexts/theme-context";
 import { cn } from "@/lib/utils";
 
 type NavRole = "all" | "admin";
@@ -42,6 +45,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, isAdmin } = useAuth();
+  const { toggleTheme, resolvedTheme } = useTheme();
 
   const visibleItems = navItems.filter((item) => {
     if (item.roles === "all") return true;
@@ -106,10 +110,25 @@ export function AppSidebar() {
             <p className="truncate font-mono text-xs text-muted-foreground">{user?.email}</p>
           </div>
         </div>
-        <Button variant="ghost" className="w-full justify-start" onClick={handleLogout}>
-          <LogOut className="h-4 w-4" strokeWidth={1.75} />
-          Sign out
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" className="flex-1 justify-start" onClick={handleLogout}>
+            <LogOut className="h-4 w-4" strokeWidth={1.75} />
+            Sign out
+          </Button>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            title={resolvedTheme === "dark" ? "Light" : "Dark"}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {resolvedTheme === "dark" ? (
+              <Sun className="h-4 w-4" strokeWidth={1.75} />
+            ) : (
+              <Moon className="h-4 w-4" strokeWidth={1.75} />
+            )}
+          </button>
+        </div>
       </div>
     </aside>
   );
@@ -121,6 +140,7 @@ export function MobileNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, isAdmin } = useAuth();
+  const { toggleTheme, resolvedTheme } = useTheme();
 
   // ESC to close + basic scroll lock
   useEffect(() => {
@@ -189,7 +209,7 @@ export function MobileNav() {
         <div className="fixed inset-0 z-[var(--z-modal)] md:hidden" aria-modal="true" role="dialog">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-[rgb(26_26_24/0.28)] backdrop-blur-[1px]"
+            className="absolute inset-0 bg-[var(--overlay)] backdrop-blur-[1px]"
             onClick={closePanel}
           />
 
@@ -268,10 +288,25 @@ export function MobileNav() {
                   <p className="truncate font-mono text-xs text-muted-foreground">{user?.email}</p>
                 </div>
               </div>
-              <Button variant="ghost" className="w-full justify-start" onClick={handleLogout}>
-                <LogOut className="h-4 w-4" strokeWidth={1.75} />
-                Sign out
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" className="flex-1 justify-start" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4" strokeWidth={1.75} />
+                  Sign out
+                </Button>
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  aria-label={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                  title={resolvedTheme === "dark" ? "Light" : "Dark"}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {resolvedTheme === "dark" ? (
+                    <Sun className="h-4 w-4" strokeWidth={1.75} />
+                  ) : (
+                    <Moon className="h-4 w-4" strokeWidth={1.75} />
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
