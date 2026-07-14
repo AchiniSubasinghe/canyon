@@ -1,9 +1,58 @@
 import { hashPassword } from "../lib/password.js";
 import { eq } from "drizzle-orm";
 import { db } from "./index.js";
-import { projectMembers, projects, roles, tasks, userRoles, users } from "./schema.js";
+import {
+  projectMembers,
+  projects,
+  refreshTokens,
+  roles,
+  tasks,
+  userRoles,
+  users,
+} from "./schema.js";
+
+/** The only accounts kept by seed — one per role. */
+const SEED_USERS = [
+  {
+    email: "admin@canyon.local",
+    password: "Admin123!",
+    name: "System Admin",
+    role: "administrator" as const,
+  },
+  {
+    email: "pm@canyon.local",
+    password: "Pm123456!",
+    name: "Project Manager",
+    role: "project_manager" as const,
+  },
+  {
+    email: "member@canyon.local",
+    password: "Member123!",
+    name: "Team Member",
+    role: "team_member" as const,
+  },
+] as const;
+
+const SEED_EMAILS = SEED_USERS.map((u) => u.email);
 
 async function main() {
+  // Wipe domain data so seed always ends with only the 3 role users.
+  await db.delete(tasks);
+  await db.delete(projectMembers);
+  await db.delete(projects);
+  await db.delete(refreshTokens);
+
+  const allUsers = await db.select({ id: users.id, email: users.email }).from(users);
+  const extraIds = allUsers.filter((u) => !SEED_EMAILS.includes(u.email as (typeof SEED_EMAILS)[number])).map((u) => u.id);
+
+  if (extraIds.length > 0) {
+    for (const id of extraIds) {
+      await db.delete(userRoles).where(eq(userRoles.userId, id));
+      await db.delete(users).where(eq(users.id, id));
+    }
+    console.log(`Removed ${extraIds.length} non-seed user(s)`);
+  }
+
   const roleNames = ["administrator", "project_manager", "team_member"] as const;
 
   for (const name of roleNames) {
@@ -14,41 +63,30 @@ async function main() {
   }
 
   const allRoles = await db.select().from(roles);
-  const adminRole = allRoles.find((r) => r.name === "administrator");
-  const pmRole = allRoles.find((r) => r.name === "project_manager");
-  const memberRole = allRoles.find((r) => r.name === "team_member");
+  const roleByName = Object.fromEntries(allRoles.map((r) => [r.name, r.id])) as Record<
+    string,
+    number
+  >;
 
-  if (!adminRole || !pmRole || !memberRole) {
-    throw new Error("Required roles missing");
+  for (const name of roleNames) {
+    if (!roleByName[name]) {
+      throw new Error(`Required role missing: ${name}`);
+    }
   }
 
-  const seedUsers = [
-    {
-      email: "admin@canyon.local",
-      password: "Admin123!",
-      name: "System Admin",
-      roleId: adminRole.id,
-    },
-    {
-      email: "pm@canyon.local",
-      password: "Pm123456!",
-      name: "Project Manager",
-      roleId: pmRole.id,
-    },
-    {
-      email: "member@canyon.local",
-      password: "Member123!",
-      name: "Team Member",
-      roleId: memberRole.id,
-    },
-  ];
-
-  const userIds: Record<string, number> = {};
-
-  for (const seed of seedUsers) {
+  for (const seed of SEED_USERS) {
+    const roleId = roleByName[seed.role]!;
     const [existing] = await db.select().from(users).where(eq(users.email, seed.email)).limit(1);
+
     if (existing) {
-      userIds[seed.email] = existing.id;
+      // Ensure role assignment is correct and user is active.
+      await db.delete(userRoles).where(eq(userRoles.userId, existing.id));
+      await db.insert(userRoles).values({ userId: existing.id, roleId });
+      await db
+        .update(users)
+        .set({ name: seed.name, isActive: true })
+        .where(eq(users.id, existing.id));
+      console.log(`Kept user: ${seed.email}`);
       continue;
     }
 
@@ -61,115 +99,13 @@ async function main() {
 
     await db.insert(userRoles).values({
       userId: result.insertId,
-      roleId: seed.roleId,
+      roleId,
     });
 
-    userIds[seed.email] = result.insertId;
     console.log(`Created user: ${seed.email}`);
   }
 
-  const [existingProject] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.name, "Platform Launch"))
-    .limit(1);
-
-  let projectId: number;
-
-  if (existingProject) {
-    projectId = existingProject.id;
-  } else {
-    const [result] = await db.insert(projects).values({
-      name: "Platform Launch",
-      description: "Demo project for onboarding and task workflows.",
-      status: "active",
-      createdBy: userIds["pm@canyon.local"]!,
-    });
-    projectId = result.insertId;
-    console.log("Created demo project: Platform Launch");
-  }
-
-  const memberPairs = [
-    { userId: userIds["pm@canyon.local"]!, memberRole: "manager" as const },
-    { userId: userIds["member@canyon.local"]!, memberRole: "member" as const },
-  ];
-
-  for (const pair of memberPairs) {
-    const members = await db
-      .select()
-      .from(projectMembers)
-      .where(eq(projectMembers.projectId, projectId));
-
-    const alreadyMember = members.some((m) => m.userId === pair.userId);
-    if (!alreadyMember) {
-      await db.insert(projectMembers).values({
-        projectId,
-        userId: pair.userId,
-        memberRole: pair.memberRole,
-      });
-    }
-  }
-
-  const demoTasks = [
-    {
-      title: "Define API contracts",
-      description: "Document REST endpoints and shared types.",
-      status: "done" as const,
-      priority: "high" as const,
-      assignedTo: userIds["pm@canyon.local"]!,
-    },
-    {
-      title: "Build auth middleware",
-      description: "JWT access tokens with refresh rotation.",
-      status: "in_progress" as const,
-      priority: "urgent" as const,
-      assignedTo: userIds["member@canyon.local"]!,
-    },
-    {
-      title: "Design dashboard layout",
-      description: "Wireframe metrics and task table.",
-      status: "review" as const,
-      priority: "medium" as const,
-      assignedTo: userIds["member@canyon.local"]!,
-    },
-    {
-      title: "Set up CI pipeline",
-      description: "GitHub Actions for backend tests and frontend build.",
-      status: "todo" as const,
-      priority: "low" as const,
-      assignedTo: userIds["pm@canyon.local"]!,
-    },
-    {
-      title: "Write onboarding docs",
-      description: "README with demo credentials and setup steps.",
-      status: "todo" as const,
-      priority: "medium" as const,
-      assignedTo: null,
-    },
-  ];
-
-  for (const task of demoTasks) {
-    const [existing] = await db
-      .select()
-      .from(tasks)
-      .where(eq(tasks.title, task.title))
-      .limit(1);
-
-    if (existing) continue;
-
-    await db.insert(tasks).values({
-      projectId,
-      title: task.title,
-      description: task.description,
-      status: task.status,
-      priority: task.priority,
-      assignedTo: task.assignedTo,
-      createdBy: userIds["pm@canyon.local"]!,
-    });
-    console.log(`Created task: ${task.title}`);
-  }
-
-  console.log("Seed complete");
+  console.log("Seed complete — 3 users only (no projects or tasks)");
   process.exit(0);
 }
 

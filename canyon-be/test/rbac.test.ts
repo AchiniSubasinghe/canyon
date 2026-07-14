@@ -11,26 +11,64 @@ afterAll(async () => {
 
 describe("rbac", () => {
   test("team member only sees assigned tasks in project list", async () => {
+    const admin = await loginAs("admin@canyon.local", "Admin123!");
     const member = await loginAs("member@canyon.local", "Member123!");
 
-    const projectsRes = await api("/projects?limit=10", {
-      headers: member.authHeader,
+    // Fixture: project + member membership + one assigned task (no seed domain data).
+    const createProject = await api("/projects", {
+      method: "POST",
+      headers: { ...admin.authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: `RBAC Project ${Date.now()}` }),
     });
-    expect(projectsRes.status).toBe(200);
-    const projectsBody = (await projectsRes.json()) as { data: { id: number }[] };
-    const projectId = projectsBody.data[0]?.id;
-    expect(projectId).toBeTruthy();
+    expect(createProject.status).toBe(201);
+    const project = (await createProject.json()) as { id: number };
 
-    const tasksRes = await api(`/tasks/project/${projectId}?limit=50`, {
+    const memberUser = await api("/users?limit=50", { headers: admin.authHeader });
+    expect(memberUser.status).toBe(200);
+    const usersBody = (await memberUser.json()) as {
+      data: Array<{ id: number; email: string }>;
+    };
+    const memberId = usersBody.data.find((u) => u.email === "member@canyon.local")?.id;
+    expect(memberId).toBeTruthy();
+
+    const addMember = await api(`/projects/${project.id}/members`, {
+      method: "POST",
+      headers: { ...admin.authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: memberId, memberRole: "member" }),
+    });
+    expect(addMember.status).toBe(201);
+
+    const createAssigned = await api(`/tasks/project/${project.id}`, {
+      method: "POST",
+      headers: { ...admin.authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Assigned to member", assignedTo: memberId }),
+    });
+    expect(createAssigned.status).toBe(201);
+
+    const createUnassigned = await api(`/tasks/project/${project.id}`, {
+      method: "POST",
+      headers: { ...admin.authHeader, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Unassigned task" }),
+    });
+    expect(createUnassigned.status).toBe(201);
+
+    const tasksRes = await api(`/tasks/project/${project.id}?limit=50`, {
       headers: member.authHeader,
     });
     expect(tasksRes.status).toBe(200);
     const tasksBody = (await tasksRes.json()) as {
-      data: { assignedTo: number | null }[];
+      data: Array<{ assignedTo: number | null; title: string }>;
     };
 
+    expect(tasksBody.data.length).toBeGreaterThan(0);
     for (const task of tasksBody.data) {
-      expect(task.assignedTo).toBeTruthy();
+      expect(task.assignedTo).toBe(memberId);
     }
+
+    // Cleanup
+    await api(`/projects/${project.id}`, {
+      method: "DELETE",
+      headers: admin.authHeader,
+    });
   });
 });

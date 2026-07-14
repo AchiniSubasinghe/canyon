@@ -67,4 +67,4 @@ bun run start       # Run src/index.ts
 | `typecheck` | `tsc --noEmit` |
 | `db:generate` | Generate Drizzle migrations |
 | `db:migrate` | Apply migrations |
-| `db:seed` | Seed roles and demo users |
+| `db:seed` | Seed roles + 3 demo users only (clears projects/tasks/extra users) |
