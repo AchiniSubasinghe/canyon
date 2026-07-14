@@ -2,18 +2,30 @@
 
 import { ArrowUp, Check, Loader2, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CanyonMark } from "@/components/brand/canyon-mark";
+import {
+  AgentDataTable,
+  type AgentTableData,
+} from "@/components/agent/agent-data-table";
+import {
+  ConfirmActions,
+  needsConfirmation,
+  prepareAssistantDisplay,
+} from "@/components/agent/confirm-actions";
 import { MarkdownContent } from "@/components/agent/markdown-content";
+import { CanyonMark } from "@/components/brand/canyon-mark";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { getAccessToken } from "@/lib/api";
 import type { RoleName } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type Message = {
   id: string;
   role: "user" | "assistant";
   content: string;
   tools?: ToolActivity[];
+  tables?: AgentTableData[];
+  confirmAnswered?: boolean;
 };
 
 type ToolActivity = {
@@ -67,6 +79,12 @@ function formatToolName(name: string) {
   return name.replace(/_/g, " ");
 }
 
+function isAgentTable(value: unknown): value is AgentTableData {
+  if (!value || typeof value !== "object") return false;
+  const t = value as AgentTableData;
+  return Array.isArray(t.columns) && Array.isArray(t.rows);
+}
+
 export default function AgentPage() {
   const { user } = useAuth();
   const roles = user?.roles ?? ["team_member"];
@@ -82,6 +100,8 @@ export default function AgentPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const messageIdRef = useRef(0);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   const suggestions = ROLE_SUGGESTIONS[currentRole];
 
@@ -101,15 +121,23 @@ export default function AgentPage() {
     el.style.height = Math.min(el.scrollHeight, max) + "px";
   }, [input]);
 
-  function addMessage(role: "user" | "assistant", content: string, tools?: ToolActivity[]) {
+  function addMessage(
+    role: "user" | "assistant",
+    content: string,
+    extras?: Partial<Pick<Message, "tools" | "tables" | "confirmAnswered">>
+  ) {
     messageIdRef.current += 1;
     const id = `msg-${messageIdRef.current}`;
-    const msg: Message = { id, role, content, tools };
+    const msg: Message = { id, role, content, ...extras };
     setMessages((prev) => [...prev, msg]);
     return id;
   }
 
-  function updateLastAssistant(content: string, tools?: ToolActivity[]) {
+  function updateLastAssistant(
+    content: string,
+    tools?: ToolActivity[],
+    tables?: AgentTableData[]
+  ) {
     setMessages((prev) => {
       const copy = [...prev];
       for (let i = copy.length - 1; i >= 0; i--) {
@@ -118,6 +146,7 @@ export default function AgentPage() {
             ...copy[i],
             content,
             tools: tools ?? copy[i].tools,
+            tables: tables ?? copy[i].tables,
           };
           break;
         }
@@ -126,11 +155,22 @@ export default function AgentPage() {
     });
   }
 
+  function markConfirmsAnswered() {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.role === "assistant" && needsConfirmation(m.content) && !m.confirmAnswered
+          ? { ...m, confirmAnswered: true }
+          : m
+      )
+    );
+  }
+
   async function sendMessage(text: string) {
     if (!text.trim() || isStreaming) return;
 
     setError(null);
     const userText = text.trim();
+    markConfirmsAnswered();
     addMessage("user", userText);
     setInput("");
 
@@ -138,15 +178,17 @@ export default function AgentPage() {
     setIsStreaming(true);
     setLiveTools([]);
 
+    // Snapshot before this turn's setState commits (includes prior assistant text with [[confirm]])
     const historyForApi = [
-      ...messages,
+      ...messagesRef.current.map((m) => ({ role: m.role, content: m.content })),
       { role: "user" as const, content: userText },
-    ].map((m) => ({ role: m.role, content: m.content }));
+    ];
 
     const controller = new AbortController();
     abortRef.current = controller;
 
     const toolsAcc: ToolActivity[] = [];
+    const tablesAcc: AgentTableData[] = [];
     let accumulated = "";
 
     try {
@@ -205,7 +247,7 @@ export default function AgentPage() {
             };
             toolsAcc.push(activity);
             setLiveTools([...toolsAcc]);
-            updateLastAssistant(accumulated, [...toolsAcc]);
+            updateLastAssistant(accumulated, [...toolsAcc], [...tablesAcc]);
           } else if (eventName === "tool_result") {
             const id = String(json.id ?? "");
             const idx = toolsAcc.findIndex((t) => t.id === id);
@@ -217,13 +259,18 @@ export default function AgentPage() {
             };
             if (idx >= 0) toolsAcc[idx] = next;
             else toolsAcc.push(next);
+
+            if (json.ok && isAgentTable(json.table)) {
+              tablesAcc.push(json.table);
+            }
+
             setLiveTools([...toolsAcc]);
-            updateLastAssistant(accumulated, [...toolsAcc]);
+            updateLastAssistant(accumulated, [...toolsAcc], [...tablesAcc]);
           } else if (eventName === "content") {
             const delta = typeof json.delta === "string" ? json.delta : "";
             if (delta) {
               accumulated += delta;
-              updateLastAssistant(accumulated, [...toolsAcc]);
+              updateLastAssistant(accumulated, [...toolsAcc], [...tablesAcc]);
             }
           } else if (eventName === "error") {
             const msg =
@@ -235,10 +282,10 @@ export default function AgentPage() {
         }
       }
 
-      if (!accumulated.trim() && toolsAcc.length === 0) {
-        updateLastAssistant("…", toolsAcc);
+      if (!accumulated.trim() && toolsAcc.length === 0 && tablesAcc.length === 0) {
+        updateLastAssistant("…", toolsAcc, tablesAcc);
       } else {
-        updateLastAssistant(accumulated || "Done.", toolsAcc);
+        updateLastAssistant(accumulated || (tablesAcc.length ? "" : "Done."), toolsAcc, tablesAcc);
       }
     } catch (e: unknown) {
       if (e instanceof Error && e.name === "AbortError") return;
@@ -246,7 +293,10 @@ export default function AgentPage() {
         e instanceof Error ? e.message : "Something went wrong talking to the agent.";
       setError(msg);
       setMessages((prev) =>
-        prev.filter((m) => !(m.id === assistantId && !m.content && !m.tools?.length))
+        prev.filter(
+          (m) =>
+            !(m.id === assistantId && !m.content && !m.tools?.length && !m.tables?.length)
+        )
       );
     } finally {
       setIsStreaming(false);
@@ -278,7 +328,15 @@ export default function AgentPage() {
     if (abortRef.current) abortRef.current.abort();
   }
 
+  function answerConfirm(yes: boolean, messageId: string) {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, confirmAnswered: true } : m))
+    );
+    sendMessage(yes ? "Yes, proceed." : "No, cancel.");
+  }
+
   const boundaryText = `This agent can act for you as ${currentRole.replace(/_/g, " ")} — RBAC is enforced on every action.`;
+  const lastAssistantId = [...messages].reverse().find((m) => m.role === "assistant")?.id;
 
   return (
     <div className="-mx-4 -mt-14 flex h-[calc(100dvh)] flex-col pt-14 md:-mx-8 md:-mt-8 md:h-dvh md:pt-0">
@@ -332,54 +390,89 @@ export default function AgentPage() {
               </div>
             </div>
           ) : (
-            messages.map((m) => (
-              <div
-                key={m.id}
-                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-              >
+            messages.map((m) => {
+              const hasTables = Boolean(m.tables?.length);
+              const showConfirm =
+                m.role === "assistant" &&
+                m.id === lastAssistantId &&
+                !isStreaming &&
+                !m.confirmAnswered &&
+                needsConfirmation(m.content);
+              const display =
+                m.role === "assistant" ? prepareAssistantDisplay(m.content) : m.content;
+
+              return (
                 <div
-                  className={`max-w-[80%] px-4 py-3 text-[15px] leading-relaxed ${
-                    m.role === "user"
-                      ? "agent-bubble-user whitespace-pre-wrap bg-primary text-primary-foreground"
-                      : "agent-bubble-assistant bg-muted text-foreground"
-                  }`}
+                  key={m.id}
+                  className={cn(
+                    "flex",
+                    m.role === "user" ? "justify-end" : "justify-start"
+                  )}
                 >
-                  {m.role === "assistant" && m.tools && m.tools.length > 0 && (
-                    <div className="mb-2 flex flex-col gap-1.5">
-                      {m.tools.map((t) => (
-                        <div
-                          key={t.id}
-                          className="flex items-start gap-2 rounded-sm border border-border/60 bg-background/50 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground"
-                        >
-                          {t.status === "running" && (
-                            <Loader2 className="mt-0.5 h-3 w-3 shrink-0 animate-spin" />
-                          )}
-                          {t.status === "ok" && (
-                            <Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
-                          )}
-                          {t.status === "error" && (
-                            <X className="mt-0.5 h-3 w-3 shrink-0 text-destructive" />
-                          )}
-                          <div className="min-w-0">
-                            <div className="font-medium text-foreground/80">
-                              {formatToolName(t.name)}
-                            </div>
-                            {t.summary && (
-                              <div className="truncate text-muted-foreground/80">{t.summary}</div>
+                  <div
+                    className={cn(
+                      "px-4 py-3 text-[15px] leading-relaxed",
+                      m.role === "user"
+                        ? "agent-bubble-user max-w-[80%] whitespace-pre-wrap bg-primary text-primary-foreground"
+                        : cn(
+                            "agent-bubble-assistant bg-muted text-foreground",
+                            hasTables ? "w-full max-w-[min(100%,48rem)]" : "max-w-[80%]"
+                          )
+                    )}
+                  >
+                    {m.role === "assistant" && m.tools && m.tools.length > 0 && (
+                      <div className="mb-2 flex flex-col gap-1.5">
+                        {m.tools.map((t) => (
+                          <div
+                            key={t.id}
+                            className="flex items-start gap-2 rounded-sm border border-border/60 bg-background/50 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground"
+                          >
+                            {t.status === "running" && (
+                              <Loader2 className="mt-0.5 h-3 w-3 shrink-0 animate-spin" />
                             )}
+                            {t.status === "ok" && (
+                              <Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
+                            )}
+                            {t.status === "error" && (
+                              <X className="mt-0.5 h-3 w-3 shrink-0 text-destructive" />
+                            )}
+                            <div className="min-w-0">
+                              <div className="font-medium text-foreground/80">
+                                {formatToolName(t.name)}
+                              </div>
+                              {t.summary && (
+                                <div className="truncate text-muted-foreground/80">
+                                  {t.summary}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {m.role === "assistant" &&
+                      m.tables?.map((table, i) => (
+                        <AgentDataTable key={`${m.id}-table-${i}`} table={table} />
                       ))}
-                    </div>
-                  )}
-                  {m.role === "assistant" ? (
-                    <MarkdownContent content={m.content || (isStreaming ? "" : "")} />
-                  ) : (
-                    m.content
-                  )}
+
+                    {m.role === "assistant" ? (
+                      display ? <MarkdownContent content={display} /> : null
+                    ) : (
+                      m.content
+                    )}
+
+                    {showConfirm && (
+                      <ConfirmActions
+                        disabled={isStreaming}
+                        onYes={() => answerConfirm(true, m.id)}
+                        onNo={() => answerConfirm(false, m.id)}
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
 
           {isStreaming && liveTools.length === 0 && (

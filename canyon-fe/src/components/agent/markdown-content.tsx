@@ -9,7 +9,6 @@ interface MarkdownContentProps {
 }
 
 const components: Partial<Components> = {
-  // Links open in a new tab safely
   a: ({ node, ...props }) => (
     <a
       {...props}
@@ -19,7 +18,6 @@ const components: Partial<Components> = {
     />
   ),
 
-  // Inline code
   code: ({ node, className, children, ...props }) => {
     const isInline = !className?.includes("language-");
     if (isInline) {
@@ -32,7 +30,6 @@ const components: Partial<Components> = {
         </code>
       );
     }
-    // Block code is handled by pre below
     return (
       <code className={className} {...props}>
         {children}
@@ -40,38 +37,58 @@ const components: Partial<Components> = {
     );
   },
 
-  // Fenced code blocks
   pre: ({ node, children, ...props }) => (
     <pre
-      className="my-3 overflow-x-auto rounded-sm bg-muted p-3 text-sm font-mono text-foreground/90 border border-border"
+      className="my-3 overflow-x-auto rounded-sm border border-border bg-muted p-3 font-mono text-sm text-foreground/90"
       {...props}
     >
       {children}
     </pre>
   ),
 
-  // Lists — tighter than default for chat bubbles
   ul: ({ node, ...props }) => (
-    <ul className="my-1.5 list-disc pl-5 space-y-0.5" {...props} />
+    <ul className="my-1.5 list-disc space-y-0.5 pl-5" {...props} />
   ),
   ol: ({ node, ...props }) => (
-    <ol className="my-1.5 list-decimal pl-5 space-y-0.5" {...props} />
+    <ol className="my-1.5 list-decimal space-y-0.5 pl-5" {...props} />
   ),
   li: ({ node, ...props }) => <li className="pl-1" {...props} />,
 
-  // Paragraphs — reduce vertical rhythm inside bubbles
   p: ({ node, ...props }) => <p className="my-1 leading-relaxed" {...props} />,
 
-  // Strong / emphasis keep the system weight
   strong: ({ node, ...props }) => <strong className="font-semibold" {...props} />,
   em: ({ node, ...props }) => <em className="italic" {...props} />,
 
-  // Blockquotes for notes / asides
   blockquote: ({ node, ...props }) => (
     <blockquote
-      className="my-2 border-l-2 border-muted-foreground/40 pl-3 text-muted-foreground italic"
+      className="my-2 border-l-2 border-muted-foreground/40 pl-3 italic text-muted-foreground"
       {...props}
     />
+  ),
+
+  // GFM tables — match product hairline tables
+  table: ({ node, ...props }) => (
+    <div className="my-2 overflow-x-auto rounded-sm border border-border bg-card">
+      <table className="w-full caption-bottom text-sm" {...props} />
+    </div>
+  ),
+  thead: ({ node, ...props }) => (
+    <thead className="border-b border-border [&_tr]:border-b" {...props} />
+  ),
+  tbody: ({ node, ...props }) => (
+    <tbody className="[&_tr:last-child]:border-0" {...props} />
+  ),
+  tr: ({ node, ...props }) => (
+    <tr className="border-b border-border transition-colors hover:bg-secondary/40" {...props} />
+  ),
+  th: ({ node, ...props }) => (
+    <th
+      className="h-9 px-3 text-left align-middle font-mono text-[10px] font-medium uppercase tracking-wider text-muted-foreground"
+      {...props}
+    />
+  ),
+  td: ({ node, ...props }) => (
+    <td className="px-3 py-2 align-middle text-sm" {...props} />
   ),
 };
 

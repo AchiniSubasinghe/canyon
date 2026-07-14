@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { executeTool } from "../src/agent/handlers.js";
+import { toAgentTable } from "../src/agent/table-payload.js";
 import type { AgentUser } from "../src/agent/types.js";
 import { getUserByEmail, getUserRoles } from "../src/services/users.js";
 import { api, loginAs, startTestServer, stopTestServer } from "./setup.js";
@@ -36,6 +37,36 @@ describe("agent tools RBAC", () => {
       expect(task.assignedTo).toBe(member.id);
     }
   });
+
+  test("toAgentTable maps list_projects into UI columns", async () => {
+    const admin = await agentUser("admin@canyon.local");
+    const result = await executeTool("list_projects", { limit: 10 }, admin);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const table = toAgentTable("list_projects", result);
+    expect(table).toBeDefined();
+    expect(table!.columns.map((c) => c.key)).toEqual(["id", "name", "status", "tasks"]);
+    expect(table!.rows.length).toBeGreaterThan(0);
+    expect(table!.rows[0]).toHaveProperty("name");
+  });
+
+  test("toAgentTable maps list_tasks into UI columns", async () => {
+    const admin = await agentUser("admin@canyon.local");
+    const result = await executeTool("list_tasks", { limit: 10 }, admin);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const table = toAgentTable("list_tasks", result);
+    if ((result.data as { data: unknown[] }).data.length === 0) {
+      expect(table).toBeUndefined();
+      return;
+    }
+    expect(table).toBeDefined();
+    expect(table!.columns.some((c) => c.key === "title")).toBe(true);
+    expect(table!.rows[0]).toHaveProperty("status");
+  });
+
 
   test("team member cannot create_project or create_task", async () => {
     const member = await agentUser("member@canyon.local");

@@ -3,6 +3,7 @@ import { config } from "../config.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { executeTool, summarizeToolResult } from "./handlers.js";
 import { buildSystemPrompt } from "./prompt.js";
+import { toAgentTable } from "./table-payload.js";
 import { AGENT_TOOLS } from "./tools.js";
 import type {
   AgentUser,
@@ -175,11 +176,13 @@ export async function runAgentLoop(
             result = await executeTool(name, args, user);
           }
 
+          const table = toAgentTable(name, result);
           writeSse(res, "tool_result", {
             id: call.id,
             name,
             ok: result.ok,
             summary: summarizeToolResult(result),
+            ...(table ? { table } : {}),
           });
 
           messages.push({
