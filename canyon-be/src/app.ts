@@ -13,7 +13,13 @@ import usersRouter from "./routes/users.js";
 export function createApp() {
   const app = express();
 
-  app.use(helmet());
+  // CORP same-origin blocks credentialed cross-origin fetch in some browsers when
+  // the frontend and API are on different hosts. cross-origin keeps CORS usable.
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+    })
+  );
   app.use(
     cors({
       origin: config.CORS_ORIGIN,

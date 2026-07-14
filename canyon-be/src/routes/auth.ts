@@ -21,13 +21,41 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-function setRefreshCookie(res: import("express").Response, token: string) {
-  res.cookie("refreshToken", token, {
+const REFRESH_COOKIE = "refreshToken";
+const REFRESH_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Cookie options for the refresh token.
+ *
+ * Prefer same-origin access (frontend proxies /api/v1 → backend) so SameSite=Lax
+ * works and Next.js middleware can read the cookie on the app domain.
+ *
+ * If the browser talks to the API on a different site (no proxy), set
+ * COOKIE_SAME_SITE=none on the backend — browsers require Secure with None.
+ */
+function refreshCookieOptions() {
+  const sameSite = (config.COOKIE_SAME_SITE ?? "lax") as "strict" | "lax" | "none";
+  const secure =
+    config.COOKIE_SECURE === "true" ||
+    config.NODE_ENV === "production" ||
+    sameSite === "none";
+
+  return {
     httpOnly: true,
-    secure: config.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+    secure,
+    sameSite,
+    path: "/",
+    maxAge: REFRESH_MAX_AGE_MS,
+  };
+}
+
+function setRefreshCookie(res: import("express").Response, token: string) {
+  res.cookie(REFRESH_COOKIE, token, refreshCookieOptions());
+}
+
+function clearRefreshCookie(res: import("express").Response) {
+  const { maxAge: _maxAge, ...opts } = refreshCookieOptions();
+  res.clearCookie(REFRESH_COOKIE, opts);
 }
 
 router.post("/login", async (req, res, next) => {
@@ -71,7 +99,7 @@ router.post("/login", async (req, res, next) => {
 
 router.post("/refresh", async (req, res, next) => {
   try {
-    const token = req.cookies?.refreshToken as string | undefined;
+    const token = req.cookies?.[REFRESH_COOKIE] as string | undefined;
     if (!token) {
       throw new AppError(401, "Refresh token required");
     }
@@ -106,7 +134,7 @@ router.post("/refresh", async (req, res, next) => {
 
 router.post("/logout", requireAuth, async (req, res, next) => {
   try {
-    const token = req.cookies?.refreshToken as string | undefined;
+    const token = req.cookies?.[REFRESH_COOKIE] as string | undefined;
     if (token) {
       try {
         const { jti } = decodeRefreshCookie(token);
@@ -115,7 +143,7 @@ router.post("/logout", requireAuth, async (req, res, next) => {
         // ignore invalid cookie on logout
       }
     }
-    res.clearCookie("refreshToken");
+    clearRefreshCookie(res);
     res.json({ message: "Logged out" });
   } catch (err) {
     next(err);
