@@ -39,6 +39,8 @@ Open http://localhost:3000
 | pm@canyon.local | Pm123456! | Project Manager |
 | member@canyon.local | Member123! | Team Member |
 
+Re-running `bun run db:seed` restores these three passwords (and clears projects, tasks, and any non-seed users).
+
 ## Scripts (root)
 
 ```bash

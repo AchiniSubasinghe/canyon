@@ -55,7 +55,7 @@ async function callDeepSeek(messages: LlmMessage[], stream: boolean) {
       Authorization: `Bearer ${config.DEEPSEEK_API_KEY}`,
     },
     body: JSON.stringify({
-      model: "deepseek-chat",
+      model: "deepseek-v4-flash",
       messages,
       tools: AGENT_TOOLS,
       tool_choice: "auto",

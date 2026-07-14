@@ -79,14 +79,15 @@ async function main() {
     const [existing] = await db.select().from(users).where(eq(users.email, seed.email)).limit(1);
 
     if (existing) {
-      // Ensure role assignment is correct and user is active.
+      // Restore role, profile, and documented password so seed stays idempotent.
+      const passwordHash = await hashPassword(seed.password);
       await db.delete(userRoles).where(eq(userRoles.userId, existing.id));
       await db.insert(userRoles).values({ userId: existing.id, roleId });
       await db
         .update(users)
-        .set({ name: seed.name, isActive: true })
+        .set({ name: seed.name, isActive: true, passwordHash })
         .where(eq(users.id, existing.id));
-      console.log(`Kept user: ${seed.email}`);
+      console.log(`Reset user: ${seed.email}`);
       continue;
     }
 
