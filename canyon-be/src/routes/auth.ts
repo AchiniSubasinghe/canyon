@@ -46,6 +46,7 @@ function refreshCookieOptions() {
     sameSite,
     path: "/",
     maxAge: REFRESH_MAX_AGE_MS,
+    ...(config.COOKIE_DOMAIN ? { domain: config.COOKIE_DOMAIN } : {}),
   };
 }
 

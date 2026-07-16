@@ -21,6 +21,8 @@ const envSchema = z.object({
   COOKIE_SAME_SITE: z.enum(["strict", "lax", "none"]).default("lax"),
   /** Force Secure on the refresh cookie ("true" / "false"). Defaults to on in production. */
   COOKIE_SECURE: z.enum(["true", "false"]).optional(),
+  /** Cookie domain for sharing cookies across subdomains (e.g. .achini.space) */
+  COOKIE_DOMAIN: z.string().optional(),
   DEEPSEEK_API_KEY: z.string().min(1, "DEEPSEEK_API_KEY is required for the Canyon Agent"),
 });
 
