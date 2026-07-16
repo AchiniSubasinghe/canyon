@@ -11,7 +11,7 @@ afterAll(async () => {
 
 describe("tasks", () => {
   test("reject assignee who is not a project member", async () => {
-    const admin = await loginAs("admin@canyon.local", "Admin123!");
+    const admin = await loginAs("achini@canyon.local", "achini123");
 
     const createProject = await api("/projects", {
       method: "POST",
@@ -33,7 +33,7 @@ describe("tasks", () => {
   });
 
   test("GET /tasks returns paginated response", async () => {
-    const admin = await loginAs("admin@canyon.local", "Admin123!");
+    const admin = await loginAs("achini@canyon.local", "achini123");
     const res = await api("/tasks?limit=5", { headers: admin.authHeader });
     expect(res.status).toBe(200);
 

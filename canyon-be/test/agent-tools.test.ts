@@ -27,7 +27,7 @@ afterAll(async () => {
 
 describe("agent tools RBAC", () => {
   test("team member list_tasks only returns assigned tasks", async () => {
-    const member = await agentUser("member@canyon.local");
+    const member = await agentUser("emalin@canyon.local");
     const result = await executeTool("list_tasks", { limit: 50 }, member);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -39,7 +39,14 @@ describe("agent tools RBAC", () => {
   });
 
   test("toAgentTable maps list_projects into UI columns", async () => {
-    const admin = await agentUser("admin@canyon.local");
+    const admin = await agentUser("achini@canyon.local");
+    const created = await executeTool(
+      "create_project",
+      { name: `Table map project ${Date.now()}`, description: "for table payload" },
+      admin
+    );
+    expect(created.ok).toBe(true);
+
     const result = await executeTool("list_projects", { limit: 10 }, admin);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -49,10 +56,15 @@ describe("agent tools RBAC", () => {
     expect(table!.columns.map((c) => c.key)).toEqual(["id", "name", "status", "tasks"]);
     expect(table!.rows.length).toBeGreaterThan(0);
     expect(table!.rows[0]).toHaveProperty("name");
+
+    if (created.ok) {
+      const projectId = (created.data as { id: number }).id;
+      await executeTool("delete_project", { projectId }, admin);
+    }
   });
 
   test("toAgentTable maps list_tasks into UI columns", async () => {
-    const admin = await agentUser("admin@canyon.local");
+    const admin = await agentUser("achini@canyon.local");
     const result = await executeTool("list_tasks", { limit: 10 }, admin);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -69,7 +81,7 @@ describe("agent tools RBAC", () => {
 
 
   test("team member cannot create_project or create_task", async () => {
-    const member = await agentUser("member@canyon.local");
+    const member = await agentUser("emalin@canyon.local");
 
     const createProject = await executeTool(
       "create_project",
@@ -95,7 +107,7 @@ describe("agent tools RBAC", () => {
   });
 
   test("team member cannot list_users or delete_project", async () => {
-    const member = await agentUser("member@canyon.local");
+    const member = await agentUser("emalin@canyon.local");
 
     const users = await executeTool("list_users", {}, member);
     expect(users.ok).toBe(false);
@@ -107,7 +119,7 @@ describe("agent tools RBAC", () => {
   });
 
   test("project manager can create_project but not list_users or delete_project", async () => {
-    const pm = await agentUser("pm@canyon.local");
+    const pm = await agentUser("akash@canyon.local");
 
     const created = await executeTool(
       "create_project",
@@ -129,12 +141,12 @@ describe("agent tools RBAC", () => {
     if (!del.ok) expect(del.statusCode).toBe(403);
 
     // cleanup via admin tool
-    const admin = await agentUser("admin@canyon.local");
+    const admin = await agentUser("achini@canyon.local");
     await executeTool("delete_project", { projectId: project.id }, admin);
   });
 
   test("project manager can create_task on managed project", async () => {
-    const pm = await agentUser("pm@canyon.local");
+    const pm = await agentUser("akash@canyon.local");
     const created = await executeTool(
       "create_project",
       { name: `PM Task Project ${Date.now()}` },
@@ -158,12 +170,12 @@ describe("agent tools RBAC", () => {
     if (!task.ok) return;
     expect((task.data as { title: string }).title).toBe("Agent created task");
 
-    const admin = await agentUser("admin@canyon.local");
+    const admin = await agentUser("achini@canyon.local");
     await executeTool("delete_project", { projectId }, admin);
   });
 
   test("admin can list_users and create_user", async () => {
-    const admin = await agentUser("admin@canyon.local");
+    const admin = await agentUser("achini@canyon.local");
     const list = await executeTool("list_users", { limit: 10 }, admin);
     expect(list.ok).toBe(true);
     if (!list.ok) return;
@@ -189,14 +201,14 @@ describe("agent tools RBAC", () => {
   });
 
   test("admin cannot deactivate self via tool", async () => {
-    const admin = await agentUser("admin@canyon.local");
+    const admin = await agentUser("achini@canyon.local");
     const result = await executeTool("deactivate_user", { userId: admin.id }, admin);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.statusCode).toBe(400);
   });
 
   test("validation errors return ok:false", async () => {
-    const admin = await agentUser("admin@canyon.local");
+    const admin = await agentUser("achini@canyon.local");
     const result = await executeTool("create_task", { projectId: 1 }, admin);
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -206,14 +218,14 @@ describe("agent tools RBAC", () => {
   });
 
   test("unknown tool name fails", async () => {
-    const admin = await agentUser("admin@canyon.local");
+    const admin = await agentUser("achini@canyon.local");
     const result = await executeTool("launch_missiles", {}, admin);
     expect(result.ok).toBe(false);
   });
 
   test("assignee can update_task_status", async () => {
-    const admin = await agentUser("admin@canyon.local");
-    const member = await agentUser("member@canyon.local");
+    const admin = await agentUser("achini@canyon.local");
+    const member = await agentUser("emalin@canyon.local");
 
     const project = await executeTool(
       "create_project",
@@ -266,7 +278,7 @@ describe("agent tools RBAC", () => {
   });
 
   test("chat endpoint accepts authenticated request shape (may fail without deepseek key mid-stream)", async () => {
-    const admin = await loginAs("admin@canyon.local", "Admin123!");
+    const admin = await loginAs("achini@canyon.local", "achini123");
     const res = await api("/agent/chat", {
       method: "POST",
       headers: { ...admin.authHeader, "Content-Type": "application/json" },

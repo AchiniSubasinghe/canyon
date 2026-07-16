@@ -14,21 +14,21 @@ import {
 /** The only accounts kept by seed — one per role. */
 const SEED_USERS = [
   {
-    email: "admin@canyon.local",
-    password: "Admin123!",
-    name: "System Admin",
+    email: "achini@canyon.local",
+    password: "achini123",
+    name: "Achini",
     role: "administrator" as const,
   },
   {
-    email: "pm@canyon.local",
-    password: "Pm123456!",
-    name: "Project Manager",
+    email: "akash@canyon.local",
+    password: "akash123",
+    name: "Akash",
     role: "project_manager" as const,
   },
   {
-    email: "member@canyon.local",
-    password: "Member123!",
-    name: "Team Member",
+    email: "emalin@canyon.local",
+    password: "emalin123",
+    name: "Emalin",
     role: "team_member" as const,
   },
 ] as const;

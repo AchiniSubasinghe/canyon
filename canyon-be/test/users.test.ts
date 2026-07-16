@@ -11,7 +11,7 @@ afterAll(async () => {
 
 describe("users", () => {
   test("GET /users returns paginated response", async () => {
-    const admin = await loginAs("admin@canyon.local", "Admin123!");
+    const admin = await loginAs("achini@canyon.local", "achini123");
     const res = await api("/users?limit=10&offset=0", { headers: admin.authHeader });
     expect(res.status).toBe(200);
 
@@ -21,7 +21,7 @@ describe("users", () => {
   });
 
   test("GET /users/:id returns user", async () => {
-    const admin = await loginAs("admin@canyon.local", "Admin123!");
+    const admin = await loginAs("achini@canyon.local", "achini123");
     const listRes = await api("/users?limit=1", { headers: admin.authHeader });
     const list = (await listRes.json()) as { data: { id: number }[] };
     const userId = list.data[0]!.id;

@@ -11,13 +11,13 @@ afterAll(async () => {
 
 describe("auth", () => {
   test("login returns access token and sets refresh cookie", async () => {
-    const session = await loginAs("admin@canyon.local", "Admin123!");
+    const session = await loginAs("achini@canyon.local", "achini123");
     expect(session.accessToken).toBeTruthy();
     expect(session.cookie).toContain("refreshToken=");
   });
 
   test("refresh rotates token and old token is revoked", async () => {
-    const session = await loginAs("admin@canyon.local", "Admin123!");
+    const session = await loginAs("achini@canyon.local", "achini123");
 
     const refreshRes = await api("/auth/refresh", {
       method: "POST",
@@ -33,7 +33,7 @@ describe("auth", () => {
   });
 
   test("logout revokes refresh token", async () => {
-    const session = await loginAs("admin@canyon.local", "Admin123!");
+    const session = await loginAs("achini@canyon.local", "achini123");
 
     const logoutRes = await api("/auth/logout", {
       method: "POST",

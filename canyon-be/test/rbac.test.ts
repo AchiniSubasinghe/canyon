@@ -11,8 +11,8 @@ afterAll(async () => {
 
 describe("rbac", () => {
   test("team member only sees assigned tasks in project list", async () => {
-    const admin = await loginAs("admin@canyon.local", "Admin123!");
-    const member = await loginAs("member@canyon.local", "Member123!");
+    const admin = await loginAs("achini@canyon.local", "achini123");
+    const member = await loginAs("emalin@canyon.local", "emalin123");
 
     // Fixture: project + member membership + one assigned task (no seed domain data).
     const createProject = await api("/projects", {
@@ -28,7 +28,7 @@ describe("rbac", () => {
     const usersBody = (await memberUser.json()) as {
       data: Array<{ id: number; email: string }>;
     };
-    const memberId = usersBody.data.find((u) => u.email === "member@canyon.local")?.id;
+    const memberId = usersBody.data.find((u) => u.email === "emalin@canyon.local")?.id;
     expect(memberId).toBeTruthy();
 
     const addMember = await api(`/projects/${project.id}/members`, {
